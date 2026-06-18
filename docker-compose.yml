@@ -1,0 +1,14 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: tvc_postgres
+    environment:
+      POSTGRES_PASSWORD: postgres123
+      POSTGRES_DB: tvc_school_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - tvc_postgres_data:/var/lib/postgresql/data
+
+volumes:
+  tvc_postgres_data:

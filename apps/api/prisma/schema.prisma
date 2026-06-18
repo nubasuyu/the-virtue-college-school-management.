@@ -1,0 +1,255 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Tenant {
+  id             String    @id @default(uuid())
+  name           String    @default("The Virtue College")
+  shortName      String    @default("TVC")
+  domain         String    @unique
+  primaryColor   String    @default("#5C4033")
+  secondaryColor String    @default("#FFFDD0")
+  users          User[]
+  students       Student[]
+  classes        Class[]
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  subjects      Subject[]
+  attendance    Attendance[]
+}
+
+model User {
+  id           String     @id @default(uuid())
+  tenantId     String
+  tenant       Tenant     @relation(fields: [tenantId], references: [id])
+  email        String
+  passwordHash String
+  firstName    String
+  lastName     String
+  role         UserRole
+  isActive     Boolean    @default(true)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@unique([tenantId, email])
+  @@index([tenantId, role])
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  SCHOOL_ADMIN
+  TEACHER
+  STUDENT
+  PARENT
+  ACCOUNTANT
+}
+
+model Student {
+  id             String   @id @default(uuid())
+  tenantId       String
+  admissionNo    String   @unique
+  firstName      String
+  lastName       String
+  dateOfBirth    DateTime
+  gender         String
+  email          String?
+  address        String?
+  parentName     String?
+  parentPhone    String?
+  parentEmail    String?
+  currentClassId String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // --- RELATIONS (These were missing or incomplete) ---
+  tenant         Tenant   @relation(fields: [tenantId], references: [id])
+  currentClass   Class?   @relation("StudentCurrentClass", fields: [currentClassId], references: [id])
+  classHistories ClassHistory[]
+  grades         Grade[]
+  attendances    Attendance[] // Added this to fix the Attendance error
+  
+  payments       Payment[]
+}
+
+model Exam {
+  id              String    @id @default(uuid())
+  tenantId        String
+  termId          String
+  name            String    // e.g., "CA Test 1", "Midterm Exam"
+  assessmentType  String    // "CA", "MIDTERM", "FINAL"
+  subjectId       String
+  classId         String
+  date            DateTime
+  totalMarks      Int       @default(100)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  term            Term      @relation(fields: [termId], references: [id])
+  subject         Subject   @relation(fields: [subjectId], references: [id])
+  class           Class     @relation(fields: [classId], references: [id])
+  grades          Grade[]
+}
+
+model Grade {
+  id            String    @id @default(uuid())
+  tenantId      String
+  examId        String
+  studentId     String
+  termId        String    // Added for easy report card generation
+  marksObtained Int
+  remarks       String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  exam          Exam      @relation(fields: [examId], references: [id])
+  student       Student   @relation(fields: [studentId], references: [id])
+  term          Term      @relation(fields: [termId], references: [id])
+}
+
+model AcademicSession {
+  id        String   @id @default(uuid())
+  tenantId  String
+  name      String   // e.g., "2025/2026"
+  startDate DateTime
+  endDate   DateTime
+  isActive  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  terms     Term[]
+  classHistories ClassHistory[]
+}
+
+model Term {
+  id        String   @id @default(uuid())
+  tenantId  String
+  sessionId String
+  name      String   // "First Term", "Second Term"
+  number    Int      // 1, 2, 3
+  startDate DateTime
+  endDate   DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  session   AcademicSession @relation(fields: [sessionId], references: [id])
+  exams     Exam[]
+  grades    Grade[]
+  
+  feeStructures  FeeStructure[]
+}
+
+model ClassHistory {
+  id        String   @id @default(uuid())
+  studentId String
+  classId   String
+  sessionId String
+  promoted  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  student   Student  @relation(fields: [studentId], references: [id])
+  class     Class    @relation(fields: [classId], references: [id])
+  session   AcademicSession @relation(fields: [sessionId], references: [id])
+}
+model Class {
+  id             String   @id @default(uuid())
+  tenantId       String
+  name           String
+  section        String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // --- RELATIONS ---
+  tenant         Tenant   @relation(fields: [tenantId], references: [id])
+  students       Student[] @relation("StudentCurrentClass")
+  classHistories ClassHistory[]
+  exams          Exam[]
+  attendances    Attendance[] // Added this to fix the Attendance error
+  
+  feeStructures  FeeStructure[]
+}
+model Subject {
+  id          String   @id @default(uuid())
+  tenantId    String
+  name        String
+  code        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, code])
+
+  exams         Exam[]
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  EXCUSED
+}
+
+model Attendance {
+  id        String            @id @default(uuid())
+  tenantId  String
+  studentId String
+  classId   String
+  date      DateTime          @db.Date
+  status    AttendanceStatus  @default(PRESENT)
+  notes     String?
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  tenant    Tenant            @relation(fields: [tenantId], references: [id])
+  student   Student           @relation(fields: [studentId], references: [id])
+  class     Class             @relation(fields: [classId], references: [id])
+
+  @@unique([studentId, classId, date])
+  @@index([tenantId, date])
+}
+
+model FeeStructure {
+  id          String    @id @default(uuid())
+  tenantId    String
+  name        String    // e.g., "Tuition Fee", "Book Fee", "Uniform Fee"
+  amount      Float
+  currency    String    @default("USD")  // e.g., "USD", "NGN", "GBP", "EUR"
+  classId     String
+  termId      String
+  description String?
+  dueDate     DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  class       Class     @relation(fields: [classId], references: [id])
+  term        Term      @relation(fields: [termId], references: [id])
+  payments    Payment[]
+}
+
+model Payment {
+  id              String        @id @default(uuid())
+  tenantId        String
+  studentId       String
+  feeStructureId  String?       // Optional - if null, it's a general payment
+  amount          Float
+  currency        String        @default("USD")  // Currency of the payment
+  paymentDate     DateTime      @default(now())
+  paymentMethod   String        // "CASH", "BANK_TRANSFER", "CHECK", "ONLINE"
+  reference       String?       // Transaction reference number
+  remarks         String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  student         Student       @relation(fields: [studentId], references: [id])
+  feeStructure    FeeStructure? @relation(fields: [feeStructureId], references: [id])
+}
+
+
+
+
