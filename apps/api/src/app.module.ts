@@ -16,11 +16,15 @@ import { TermModule } from './term/term.module';
 import { ReportCardModule } from './report-card/report-card.module';
 import { PromotionModule } from './promotion/promotion.module';
 import { FeesModule } from './fees/fees.module';
+import { ScheduleModule } from './schedule/schedule.module';
+import { AssignmentModule } from './assignment/assignment.module';
+import { LibraryModule } from './library/library.module';
+import { AnnouncementModule } from './announcement/announcement.module';
 
 
 
 @Module({
-  imports: [PrismaModule, AuthModule, UserModule, StudentModule, ClassModule, TeacherModule, SubjectModule, AttendanceModule, ExamModule, GradeModule, AcademicSessionModule, TermModule, ReportCardModule, PromotionModule, FeesModule,],
+  imports: [PrismaModule, AuthModule, UserModule, StudentModule, ClassModule, TeacherModule, SubjectModule, AttendanceModule, ExamModule, GradeModule, AcademicSessionModule, TermModule, ReportCardModule, PromotionModule, FeesModule, ScheduleModule, AssignmentModule, LibraryModule, AnnouncementModule,],
   controllers: [AppController],
   providers: [AppService],
 })

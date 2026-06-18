@@ -38,6 +38,11 @@ model User {
 
   @@unique([tenantId, email])
   @@index([tenantId, role])
+
+  schedule       Schedule[]
+  assignment     Assignment[]
+  borrowings     Borrowing[]
+  announcements  Announcement[]
 }
 
 enum UserRole {
@@ -74,6 +79,10 @@ model Student {
   attendances    Attendance[] // Added this to fix the Attendance error
   
   payments       Payment[]
+
+  submission    Submission[]
+  borrowings    Borrowing[]
+  
 }
 
 model Exam {
@@ -141,6 +150,7 @@ model Term {
   grades    Grade[]
   
   feeStructures  FeeStructure[]
+  schedule       Schedule[]
 }
 
 model ClassHistory {
@@ -171,6 +181,9 @@ model Class {
   attendances    Attendance[] // Added this to fix the Attendance error
   
   feeStructures  FeeStructure[]
+  schedule       Schedule[]
+  assignment     Assignment[]
+  announcements Announcement[]
 }
 model Subject {
   id          String   @id @default(uuid())
@@ -186,6 +199,8 @@ model Subject {
   @@unique([tenantId, code])
 
   exams         Exam[]
+  schedule      Schedule[]
+  assignment    Assignment[]
 }
 
 enum AttendanceStatus {
@@ -250,6 +265,146 @@ model Payment {
   feeStructure    FeeStructure? @relation(fields: [feeStructureId], references: [id])
 }
 
+model Schedule {
+  id         String   @id @default(uuid())
+  tenantId   String
+  
+  classId    String
+  subjectId  String
+  teacherId  String   // This will be the ID of a User with the TEACHER role
+  
+  dayOfWeek  String   // e.g., "MONDAY", "TUESDAY"
+  startTime  String   // e.g., "09:00"
+  endTime    String   // e.g., "10:30"
+  
+  roomName   String?  
+  termId     String?  
+  
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
+  class      Class    @relation(fields: [classId], references: [id])
+  subject    Subject  @relation(fields: [subjectId], references: [id])
+  teacher    User     @relation(fields: [teacherId], references: [id]) // Linked to User!
+  term       Term?    @relation(fields: [termId], references: [id])
+}
 
+model Assignment {
+  id          String       @id @default(uuid())
+  tenantId    String
+  
+  title       String
+  description String?
+  
+  subjectId   String
+  classId     String
+  teacherId   String // The User (Teacher) who created it
+  
+  dueDate     DateTime
+  totalMarks  Int      @default(100)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
+  subject     Subject      @relation(fields: [subjectId], references: [id])
+  class       Class        @relation(fields: [classId], references: [id])
+  teacher     User         @relation(fields: [teacherId], references: [id])
+  submissions Submission[]
+}
+
+model Submission {
+  id            String     @id @default(uuid())
+  tenantId      String
+  
+  assignmentId  String
+  studentId     String
+  
+  submittedAt   DateTime   @default(now())
+  content       String?    // Text submission or URL to an uploaded file
+  
+  marksObtained Int?       // Null until the teacher grades it
+  feedback      String?
+  
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  assignment    Assignment @relation(fields: [assignmentId], references: [id])
+  student       Student    @relation(fields: [studentId], references: [id])
+}
+
+model Book {
+  id            String       @id @default(uuid())
+  tenantId      String
+  
+  title         String
+  author        String
+  isbn          String?      // Optional ISBN
+  publisher     String?
+  publishedYear Int?
+  category      String?      // e.g., "Fiction", "Science", "History"
+  description   String?
+  
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  
+  copies        BookCopy[]
+}
+
+model BookCopy {
+  id          String       @id @default(uuid())
+  tenantId    String
+  
+  bookId      String
+  copyNumber  Int          // e.g., Copy 1, Copy 2, etc.
+  status      String       @default("AVAILABLE") // "AVAILABLE", "BORROWED", "MAINTENANCE"
+  
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  
+  book        Book         @relation(fields: [bookId], references: [id])
+  borrowings  Borrowing[]
+}
+
+model Borrowing {
+  id           String       @id @default(uuid())
+  tenantId     String
+  
+  bookCopyId   String
+  studentId    String?      // Links to Student if borrowerType is STUDENT
+  userId       String?      // Links to User if borrowerType is TEACHER
+  
+  borrowerType String       // "STUDENT" or "TEACHER"
+  
+  borrowedAt   DateTime     @default(now())
+  dueDate      DateTime
+  returnedAt   DateTime?    // Null if not yet returned
+  
+  fineAmount   Float        @default(0)
+  
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  
+  bookCopy     BookCopy     @relation(fields: [bookCopyId], references: [id])
+  student      Student?     @relation(fields: [studentId], references: [id])
+  user         User?        @relation(fields: [userId], references: [id])
+}
+
+model Announcement {
+  id             String   @id @default(uuid())
+  tenantId       String
+  
+  title          String
+  content        String
+  
+  authorId       String   // The User who posted it
+  targetAudience String   @default("ALL") // "ALL", "STUDENTS", "TEACHERS", "PARENTS", "SPECIFIC_CLASS"
+  targetClassId  String?  // Only used if targetAudience is SPECIFIC_CLASS
+  
+  isPinned       Boolean  @default(false) // Pinned notices appear first
+  
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  author         User     @relation(fields: [authorId], references: [id])
+  targetClass    Class?   @relation(fields: [targetClassId], references: [id])
+}
