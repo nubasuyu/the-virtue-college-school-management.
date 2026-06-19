@@ -8,23 +8,13 @@ export class StudentService {
   // Create a new student
   async create(
     tenantId: string,
-    data: {
-      admissionNo: string;
-      firstName: string;
-      lastName: string;
-      dateOfBirth: Date;
-      gender: string;
-      email?: string;
-      parentName?: string;
-      parentPhone?: string;
-      parentEmail?: string;
-      address?: string;
-      classId?: string;
-    }
+    data: any // Changed to 'any' to easily accept frontend JSON
   ) {
     return this.prisma.student.create({
       data: {
         ...data,
+        // 👇 CONVERT THE DATE STRING TO A DATE OBJECT 👇
+        dateOfBirth: new Date(data.dateOfBirth), 
         tenantId,
       },
     });
@@ -61,22 +51,15 @@ export class StudentService {
   async update(
     tenantId: string,
     id: string,
-    data: {
-      admissionNo?: string;
-      firstName?: string;
-      lastName?: string;
-      dateOfBirth?: Date;
-      gender?: string;
-      email?: string;
-      parentName?: string;
-      parentPhone?: string;
-      parentEmail?: string;
-      address?: string;
-      classId?: string;
-    }
+    data: any
   ) {
     // First check if student exists and belongs to this tenant
     await this.findOne(tenantId, id);
+
+    // 👇 CONVERT THE DATE STRING IF IT EXISTS IN THE UPDATE 👇
+    if (data.dateOfBirth) {
+      data.dateOfBirth = new Date(data.dateOfBirth);
+    }
 
     return this.prisma.student.update({
       where: { id },

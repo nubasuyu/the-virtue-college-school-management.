@@ -1,30 +1,26 @@
-import { Controller, Post, Body, Get, UseGuards, Request } from '@nestjs/common';
+import { Controller, Post, Body } from '@nestjs/common';
 import { AuthService } from './auth.service';
-import { JwtAuthGuard } from './jwt-auth.guard';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private authService: AuthService) {}
+  constructor(private readonly authService: AuthService) {}
 
+  // 🟢 100% PUBLIC - NO GUARDS!
   @Post('register')
-  register(@Body() body: { email: string; password: string; firstName: string; lastName: string }) {
+  async register(@Body() body: any) {
+    // Pass the variables individually to match your AuthService
     return this.authService.register(
-      body.email,
-      body.password,
-      body.firstName,
-      body.lastName,
+      body.email, 
+      body.password, 
+      body.firstName, 
+      body.lastName
     );
   }
 
+  // 🟢 100% PUBLIC - NO GUARDS!
   @Post('login')
-  login(@Body() body: { email: string; password: string }) {
+  async login(@Body() body: any) {
+    // Pass the variables individually to match your AuthService
     return this.authService.login(body.email, body.password);
-  }
-
-  // This is our new PROTECTED route
-  @UseGuards(JwtAuthGuard)
-  @Get('profile')
-  getProfile(@Request() req: any) {
-    return req.user;
   }
 }
