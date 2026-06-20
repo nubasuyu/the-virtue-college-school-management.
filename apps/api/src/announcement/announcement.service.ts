@@ -5,26 +5,17 @@ import { PrismaService } from '../prisma/prisma.service';
 export class AnnouncementService {
   constructor(private prisma: PrismaService) {}
 
-  async createAnnouncement(
-    tenantId: string,
-    data: {
-      title: string;
-      content: string;
-      authorId: string;
-      targetAudience?: string;
-      targetClassId?: string;
-      isPinned?: boolean;
-    }
-  ) {
+  // 👇 UPDATED TO ACCEPT userId AND CONNECT IT AS THE AUTHOR 👇
+  async create(tenantId: string, userId: string, data: any) {
     return this.prisma.announcement.create({
       data: {
-        tenantId,
         title: data.title,
         content: data.content,
-        authorId: data.authorId,
+        tenantId,
         targetAudience: data.targetAudience || 'ALL',
-        targetClassId: data.targetClassId,
         isPinned: data.isPinned || false,
+        // 👇 THIS FIXES THE "AUTHOR IS MISSING" ERROR 👇
+        author: { connect: { id: userId } }, 
       },
       include: {
         author: true,
@@ -33,66 +24,38 @@ export class AnnouncementService {
     });
   }
 
-  async getAllAnnouncements(
-    tenantId: string,
-    targetAudience?: string,
-    classId?: string
-  ) {
-    const where: any = { tenantId };
-
-    if (targetAudience && targetAudience !== 'ALL') {
-      where.OR = [
-        { targetAudience: 'ALL' },
-        { targetAudience: targetAudience },
-      ];
-      if (classId) {
-        where.OR.push({ targetClassId: classId });
-      }
-    }
-
+  async findAll(tenantId: string) {
     return this.prisma.announcement.findMany({
-      where,
+      where: { tenantId },
+      orderBy: { createdAt: 'desc' }, // Show newest announcements first
       include: {
-        author: true,
+        author: true, // Include the author's name
         targetClass: true,
       },
-      orderBy: [
-        { isPinned: 'desc' }, 
-        { createdAt: 'desc' }, 
-      ],
     });
   }
 
-  async getAnnouncement(tenantId: string, id: string) {
-    const announcement = await this.prisma.announcement.findFirst({
-      where: { id, tenantId },
+  async findOne(tenantId: string, id: string) {
+    const announcement = await this.prisma.announcement.findUnique({
+      where: { id },
       include: { author: true, targetClass: true },
     });
     if (!announcement) throw new NotFoundException('Announcement not found');
     return announcement;
   }
 
-  async updateAnnouncement(
-    tenantId: string,
-    id: string,
-    data: {
-      title?: string;
-      content?: string;
-      targetAudience?: string;
-      targetClassId?: string;
-      isPinned?: boolean;
-    }
-  ) {
+  async update(id: string, data: any) {
     return this.prisma.announcement.update({
-      where: { id, tenantId },
-      data,
+      where: { id },
+      data: {
+        title: data.title,
+        content: data.content,
+      },
       include: { author: true, targetClass: true },
     });
   }
 
-  async deleteAnnouncement(tenantId: string, id: string) {
-    return this.prisma.announcement.delete({
-      where: { id, tenantId },
-    });
+  async remove(tenantId: string, id: string) {
+    return this.prisma.announcement.delete({ where: { id } });
   }
 }

@@ -14,8 +14,8 @@ export default function Students() {
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editStudent, setEditStudent] = useState<any>(null); // 👈 NEW: Track which student is being edited
 
-  // Function to fetch students (extracted so we can call it after adding)
   const fetchStudents = async () => {
     try {
       const response = await api.get('/student');
@@ -31,6 +31,30 @@ export default function Students() {
     fetchStudents();
   }, []);
 
+  // 👇 NEW: Handle Delete
+  const handleDelete = async (id: string, name: string) => {
+    if (window.confirm(`Are you sure you want to delete ${name}? This cannot be undone.`)) {
+      try {
+        await api.delete(`/student/${id}`);
+        fetchStudents(); // Refresh list
+      } catch (error) {
+        alert('Failed to delete student.');
+      }
+    }
+  };
+
+  // 👇 NEW: Handle Edit
+  const handleEdit = (student: any) => {
+    setEditStudent(student);
+    setIsModalOpen(true);
+  };
+
+  // 👇 NEW: Handle closing modal (clears edit state)
+  const handleCloseModal = () => {
+    setEditStudent(null);
+    setIsModalOpen(false);
+  };
+
   if (loading) return <div className="p-4 text-gray-600">Loading students...</div>;
 
   return (
@@ -38,7 +62,7 @@ export default function Students() {
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold text-gray-800">All Students</h2>
         <button 
-          onClick={() => setIsModalOpen(true)} // 👈 Opens the modal!
+          onClick={() => { setEditStudent(null); setIsModalOpen(true); }} // 👈 Clear edit state when adding new
           className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition font-medium"
         >
           + Add New Student
@@ -71,8 +95,18 @@ export default function Students() {
                   </td>
                   <td className="px-6 py-4">{student.gender}</td>
                   <td className="px-6 py-4">
-                    <button className="text-blue-600 hover:underline mr-3">Edit</button>
-                    <button className="text-red-600 hover:underline">Delete</button>
+                    <button 
+                      onClick={() => handleEdit(student)} 
+                      className="text-blue-600 hover:underline mr-3"
+                    >
+                      Edit
+                    </button>
+                    <button 
+                      onClick={() => handleDelete(student.id, `${student.firstName} ${student.lastName}`)} 
+                      className="text-red-600 hover:underline"
+                    >
+                      Delete
+                    </button>
                   </td>
                 </tr>
               ))
@@ -84,8 +118,9 @@ export default function Students() {
       {/* The Modal Component */}
       <AddStudentModal 
         isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
-        onStudentAdded={fetchStudents} // 👈 Refreshes the list automatically!
+        onClose={handleCloseModal} 
+        onStudentSaved={fetchStudents} 
+        editStudent={editStudent} // 👈 Pass the student to edit (or null)
       />
     </div>
   );

@@ -38,6 +38,7 @@ model User {
 
   @@unique([tenantId, email])
   @@index([tenantId, role])
+  classes Class[] @relation("ClassTeacher")
 
   schedule       Schedule[]
   assignment     Assignment[]
@@ -184,6 +185,8 @@ model Class {
   schedule       Schedule[]
   assignment     Assignment[]
   announcements Announcement[]
+  classTeacherId String?
+  classTeacher   User? @relation("ClassTeacher", fields: [classTeacherId], references: [id])
 }
 model Subject {
   id          String   @id @default(uuid())
@@ -231,19 +234,19 @@ model Attendance {
 
 model FeeStructure {
   id          String    @id @default(uuid())
-  tenantId    String
+  tenantId    String?
   name        String    // e.g., "Tuition Fee", "Book Fee", "Uniform Fee"
   amount      Float
   currency    String    @default("USD")  // e.g., "USD", "NGN", "GBP", "EUR"
   classId     String
-  termId      String
-  description String?
+  termId      String?
+  description String
   dueDate     DateTime?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
   class       Class     @relation(fields: [classId], references: [id])
-  term        Term      @relation(fields: [termId], references: [id])
+  term        Term?      @relation(fields: [termId], references: [id])
   payments    Payment[]
 }
 

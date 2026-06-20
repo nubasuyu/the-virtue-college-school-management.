@@ -6,85 +6,72 @@ export class ClassService {
   constructor(private prisma: PrismaService) {}
 
   // Create a new class
-  async create(
-    tenantId: string,
-    data: {
-      name: string;
-      section: string;
-    }
-  ) {
+  async create(tenantId: string, data: any) {
     return this.prisma.class.create({
       data: {
-        ...data,
+        name: data.name,
+        section: data.section,
         tenantId,
-      },
-      include: {
-        students: true,
+        // 👇 JUST USE THE ID DIRECTLY 👇
+        classTeacherId: data.classTeacherId || null,
       },
     });
   }
 
   // Get all classes for the current tenant
   async findAll(tenantId: string) {
-    return this.prisma.class.findMany({
+    const classes = await this.prisma.class.findMany({
       where: { tenantId },
-      include: {
-        students: true,
-      },
-      orderBy: {
-        name: 'asc',
-      },
+      orderBy: { name: 'asc' },
     });
+
+    // 👇 MANUALLY FETCH TEACHER NAMES 👇
+    const classesWithTeachers = await Promise.all(
+      classes.map(async (cls) => {
+        if (cls.classTeacherId) {
+          const teacher = await this.prisma.user.findUnique({
+            where: { id: cls.classTeacherId },
+            select: { firstName: true, lastName: true },
+          });
+          return { ...cls, classTeacher: teacher };
+        }
+        return { ...cls, classTeacher: null };
+      })
+    );
+
+    return classesWithTeachers;
   }
 
-  // Get a single class by ID (with tenant check)
+  // Get a single class by ID
   async findOne(tenantId: string, id: string) {
-    const classRecord = await this.prisma.class.findUnique({
+    const cls = await this.prisma.class.findUnique({
       where: { id },
-      include: {
-        students: true,
-      },
     });
 
-    if (!classRecord) {
-      throw new NotFoundException('Class not found');
-    }
+    if (!cls) throw new NotFoundException('Class not found');
+    if (cls.tenantId !== tenantId) throw new ForbiddenException('Access denied');
 
-    if (classRecord.tenantId !== tenantId) {
-      throw new ForbiddenException('You do not have access to this class');
-    }
-
-    return classRecord;
+    return cls;
   }
 
-  // Update a class (with tenant check)
-  async update(
-    tenantId: string,
-    id: string,
-    data: {
-      name?: string;
-      section?: string;
-    }
-  ) {
-    // First check if class exists and belongs to this tenant
-    await this.findOne(tenantId, id);
+  // Update a class
+  async update(tenantId: string, id: string, data: any) {
+    await this.findOne(tenantId, id); // Check access
 
     return this.prisma.class.update({
       where: { id },
-      data,
-      include: {
-        students: true,
+      data: {
+        name: data.name,
+        section: data.section,
+        // 👇 JUST USE THE ID DIRECTLY 👇
+        classTeacherId: data.classTeacherId || null,
       },
     });
   }
 
-  // Delete a class (with tenant check)
+  // Delete a class
   async delete(tenantId: string, id: string) {
-    // First check if class exists and belongs to this tenant
-    await this.findOne(tenantId, id);
-
-    return this.prisma.class.delete({
-      where: { id },
-    });
+    await this.findOne(tenantId, id); // Check access
+    return this.prisma.class.delete({ where: { id } });
   }
 }

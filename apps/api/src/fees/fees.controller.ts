@@ -8,6 +8,7 @@ import {
   UseGuards,
   Request,
   Query,
+  Req
 } from '@nestjs/common';
 import { FeesService } from './fees.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -76,6 +77,8 @@ export class FeesController {
     return this.feesService.getStudentPayments(req.user.tenantId, studentId);
   }
 
+  
+
   // Calculate outstanding balance for a student in a term
   @Get('balance/student/:studentId/term/:termId')
   async calculateBalance(
@@ -98,4 +101,9 @@ export class FeesController {
   ) {
     return this.feesService.deleteFeeStructure(req.user.tenantId, id);
   }
+
+  @Get('payment')
+  getAllPayments(@Req() req: any) {
+  return this.feesService.getAllPayments(req.user.tenantId);
+}
 }

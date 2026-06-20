@@ -4,10 +4,11 @@ import api from '../lib/axios';
 interface AddStudentModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onStudentAdded: () => void; // Callback to refresh the list
+  onStudentSaved: () => void;
+  editStudent?: any; // 👈 NEW: If provided, we are in Edit mode
 }
 
-export default function AddStudentModal({ isOpen, onClose, onStudentAdded }: AddStudentModalProps) {
+export default function AddStudentModal({ isOpen, onClose, onStudentSaved, editStudent }: AddStudentModalProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [classes, setClasses] = useState<any[]>([]);
@@ -23,12 +24,33 @@ export default function AddStudentModal({ isOpen, onClose, onStudentAdded }: Add
     currentClassId: '',
   });
 
-  // Fetch classes when modal opens to populate the dropdown
+  // Fetch classes and pre-fill form if editing
   useEffect(() => {
     if (isOpen) {
       api.get('/class').then(res => setClasses(res.data)).catch(err => console.error(err));
+      
+      if (editStudent) {
+        // Pre-fill form for editing
+        setFormData({
+          firstName: editStudent.firstName,
+          lastName: editStudent.lastName,
+          admissionNo: editStudent.admissionNo,
+          gender: editStudent.gender,
+          // Format date for HTML date input (YYYY-MM-DD)
+          dateOfBirth: editStudent.dateOfBirth ? editStudent.dateOfBirth.split('T')[0] : '',
+          parentName: editStudent.parentName || '',
+          parentPhone: editStudent.parentPhone || '',
+          currentClassId: editStudent.currentClassId || '',
+        });
+      } else {
+        // Reset form for adding
+        setFormData({
+          firstName: '', lastName: '', admissionNo: '', gender: 'MALE', 
+          dateOfBirth: '', parentName: '', parentPhone: '', currentClassId: ''
+        });
+      }
     }
-  }, [isOpen]);
+  }, [isOpen, editStudent]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -40,16 +62,18 @@ export default function AddStudentModal({ isOpen, onClose, onStudentAdded }: Add
     setError('');
 
     try {
-      await api.post('/student', formData);
-      onStudentAdded(); // Refresh the student list
+      if (editStudent) {
+        // 👇 EDIT MODE: Update existing student
+        await api.put(`/student/${editStudent.id}`, formData);
+      } else {
+        //  ADD MODE: Create new student
+        await api.post('/student', formData);
+      }
+      
+      onStudentSaved(); // Refresh the list
       onClose(); // Close modal
-      // Reset form
-      setFormData({
-        firstName: '', lastName: '', admissionNo: '', gender: 'MALE', 
-        dateOfBirth: '', parentName: '', parentPhone: '', currentClassId: ''
-      });
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to add student.');
+      setError(err.response?.data?.message || 'Failed to save student.');
     } finally {
       setLoading(false);
     }
@@ -61,7 +85,9 @@ export default function AddStudentModal({ isOpen, onClose, onStudentAdded }: Add
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm">
       <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         <div className="p-6 border-b border-gray-200 flex justify-between items-center sticky top-0 bg-white">
-          <h3 className="text-xl font-bold text-gray-800">Add New Student</h3>
+          <h3 className="text-xl font-bold text-gray-800">
+            {editStudent ? 'Edit Student' : 'Add New Student'}
+          </h3>
           <button onClick={onClose} className="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
         </div>
 
@@ -73,25 +99,21 @@ export default function AddStudentModal({ isOpen, onClose, onStudentAdded }: Add
           )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* First Name */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">First Name *</label>
               <input required type="text" name="firstName" value={formData.firstName} onChange={handleChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
-            {/* Last Name */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Last Name *</label>
               <input required type="text" name="lastName" value={formData.lastName} onChange={handleChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
-            {/* Admission No */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Admission No *</label>
               <input required type="text" name="admissionNo" value={formData.admissionNo} onChange={handleChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
-            {/* Gender */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Gender *</label>
               <select name="gender" value={formData.gender} onChange={handleChange}
@@ -100,13 +122,11 @@ export default function AddStudentModal({ isOpen, onClose, onStudentAdded }: Add
                 <option value="FEMALE">Female</option>
               </select>
             </div>
-            {/* Date of Birth */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Date of Birth *</label>
               <input required type="date" name="dateOfBirth" value={formData.dateOfBirth} onChange={handleChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
-            {/* Class Assignment */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Assign Class *</label>
               <select required name="currentClassId" value={formData.currentClassId} onChange={handleChange}
@@ -117,13 +137,11 @@ export default function AddStudentModal({ isOpen, onClose, onStudentAdded }: Add
                 ))}
               </select>
             </div>
-            {/* Parent Name */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Parent/Guardian Name</label>
               <input type="text" name="parentName" value={formData.parentName} onChange={handleChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
-            {/* Parent Phone */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Parent Phone</label>
               <input type="tel" name="parentPhone" value={formData.parentPhone} onChange={handleChange}
@@ -136,7 +154,7 @@ export default function AddStudentModal({ isOpen, onClose, onStudentAdded }: Add
               Cancel
             </button>
             <button type="submit" disabled={loading} className="px-4 py-2 text-white bg-blue-600 rounded-md hover:bg-blue-700 transition disabled:opacity-50">
-              {loading ? 'Saving...' : 'Save Student'}
+              {loading ? 'Saving...' : (editStudent ? 'Update Student' : 'Save Student')}
             </button>
           </div>
         </form>

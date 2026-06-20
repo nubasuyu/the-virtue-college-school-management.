@@ -5,9 +5,13 @@ const navLinks = [
   { name: 'Students', path: '/students' },
   { name: 'Teachers', path: '/teachers' },
   { name: 'Classes', path: '/classes' },
+  { name: 'Subjects', path: '/subjects' }, 
   { name: 'Fees', path: '/fees' },
+  { name: 'Payments', path: '/payments' },
+  { name: 'Announcements', path: '/announcements' },
   { name: 'Timetable', path: '/timetable' },
   { name: 'Library', path: '/library' },
+  
 ];
 
 export default function Layout() {
