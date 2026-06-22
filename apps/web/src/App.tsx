@@ -9,6 +9,9 @@ import Subjects from './pages/Subjects';
 import Fees from './pages/Fees';
 import Payments from './pages/Payments';
 import Announcements from './pages/Announcements';
+import Attendance from './pages/Attendance';
+import Schedule from './pages/Schedule';
+import Library from './pages/Library';
 
 // Simple protected route wrapper
 const ProtectedRoute = ({ children }: { children: JSX.Element }) => {
@@ -45,6 +48,9 @@ function App() {
           <Route path="fees" element={<Fees />} />
           <Route path="payments" element={<Payments />} />
           <Route path="announcements" element={<Announcements />} />
+          <Route path="attendance" element={<Attendance />} />
+          <Route path="schedule" element={<Schedule />} />
+          <Route path="library" element={<Library />} />
         </Route>
 
         {/* Fallback */}

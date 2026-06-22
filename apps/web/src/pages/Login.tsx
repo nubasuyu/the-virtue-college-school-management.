@@ -17,6 +17,7 @@ export default function Login() {
       
       // Save token and redirect
       localStorage.setItem('token', access_token);
+      localStorage.setItem('user', JSON.stringify(response.data.user));
       navigate('/dashboard');
     } catch (err: any) {
       setError(err.response?.data?.message || 'Login failed. Please check your credentials.');

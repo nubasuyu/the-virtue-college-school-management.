@@ -9,8 +9,10 @@ const navLinks = [
   { name: 'Fees', path: '/fees' },
   { name: 'Payments', path: '/payments' },
   { name: 'Announcements', path: '/announcements' },
-  { name: 'Timetable', path: '/timetable' },
+  { name: 'Attendance', path: '/attendance' }, 
+  { name: 'Timetable', path: '/schedule' },
   { name: 'Library', path: '/library' },
+  
   
 ];
 

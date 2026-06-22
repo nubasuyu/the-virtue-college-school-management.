@@ -1,110 +1,78 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { AttendanceStatus } from '@prisma/client';
 
 @Injectable()
 export class AttendanceService {
   constructor(private prisma: PrismaService) {}
 
-  // Mark attendance for multiple students in a class on a specific date
-  async markAttendance(
-    tenantId: string,
-    classId: string,
-    date: string,
-    records: { studentId: string; status: AttendanceStatus; notes?: string }[]
-  ) {
-    // Verify class belongs to tenant
-    const classRecord = await this.prisma.class.findUnique({
-      where: { id: classId },
+  // Mark attendance for a single student
+  async markAttendance(tenantId: string, data: any) {
+    const { studentId, classId, date, status } = data;
+
+    // Check if attendance already exists for this student on this date
+    const existing = await this.prisma.attendance.findFirst({
+      where: {
+        tenantId,
+        studentId,
+        classId,
+        date: new Date(date),
+      },
     });
 
-    if (!classRecord || classRecord.tenantId !== tenantId) {
-      throw new NotFoundException('Class not found or access denied');
+    if (existing) {
+      // Update existing record
+      return this.prisma.attendance.update({
+        where: { id: existing.id },
+        data: { status },
+        include: {
+          student: true,
+          class: true,
+        },
+      });
+    } else {
+      // Create new record
+      return this.prisma.attendance.create({
+        data: {
+          tenantId,
+          studentId,
+          classId,
+          date: new Date(date),
+          status,
+        },
+        include: {
+          student: true,
+          class: true,
+        },
+      });
     }
-
-    // Use a transaction to upsert (create or update) all records at once
-    return this.prisma.$transaction(
-      records.map((record) =>
-        this.prisma.attendance.upsert({
-          where: {
-            studentId_classId_date: {
-              studentId: record.studentId,
-              classId: classId,
-              date: new Date(date),
-            },
-          },
-          update: {
-            status: record.status,
-            notes: record.notes,
-          },
-          create: {
-            tenantId,
-            studentId: record.studentId,
-            classId: classId,
-            date: new Date(date),
-            status: record.status,
-            notes: record.notes,
-          },
-        })
-      )
-    );
   }
 
   // Get attendance for a specific class on a specific date
   async getClassAttendance(tenantId: string, classId: string, date: string) {
-    const classRecord = await this.prisma.class.findUnique({
-      where: { id: classId },
-    });
-
-    if (!classRecord || classRecord.tenantId !== tenantId) {
-      throw new NotFoundException('Class not found or access denied');
-    }
-
     return this.prisma.attendance.findMany({
       where: {
-        classId: classId,
+        tenantId,
+        classId,
         date: new Date(date),
       },
       include: {
-        student: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            admissionNo: true,
-          },
-        },
+        student: true,
       },
       orderBy: {
-        student: {
-          lastName: 'asc',
-        },
+        student: { firstName: 'asc' },
       },
     });
   }
 
   // Get attendance history for a specific student
   async getStudentAttendance(tenantId: string, studentId: string) {
-    const student = await this.prisma.student.findUnique({
-      where: { id: studentId },
-    });
-
-    if (!student || student.tenantId !== tenantId) {
-      throw new NotFoundException('Student not found or access denied');
-    }
-
     return this.prisma.attendance.findMany({
       where: {
-        studentId: studentId,
+        tenantId,
+        studentId,
       },
       include: {
-        class: {
-          select: {
-            id: true,
-            name: true,
-            section: true,
-          },
-        },
+        class: true,
       },
       orderBy: {
         date: 'desc',
