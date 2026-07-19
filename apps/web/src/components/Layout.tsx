@@ -12,8 +12,7 @@ const navLinks = [
   { name: 'Attendance', path: '/attendance' }, 
   { name: 'Timetable', path: '/schedule' },
   { name: 'Library', path: '/library' },
-  
-  
+  { name: 'Gradebook', path: '/gradebook' },
 ];
 
 export default function Layout() {
@@ -26,9 +25,9 @@ export default function Layout() {
   };
 
   return (
-    <div className="flex h-screen bg-gray-100">
-      {/* Sidebar */}
-      <aside className="w-64 bg-blue-900 text-white flex flex-col shadow-lg">
+    <div className="flex min-h-screen bg-gray-100">
+      {/* Sidebar - Fixed height with full screen */}
+      <aside className="w-64 bg-blue-900 text-white flex flex-col shadow-lg min-h-screen">
         <div className="p-6 text-2xl font-bold border-b border-blue-800">
           The Virtue College
         </div>
@@ -47,7 +46,7 @@ export default function Layout() {
             </button>
           ))}
         </nav>
-        <div className="p-4 border-t border-blue-800">
+        <div className="p-4 border-t border-blue-800 mt-auto">
           <button
             onClick={handleLogout}
             className="w-full bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition-colors"

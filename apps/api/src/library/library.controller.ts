@@ -77,5 +77,14 @@ export class LibraryController {
   async getAllActiveBorrowings(@Request() req: any) {
     return this.libraryService.getAllActiveBorrowings(req.user.tenantId);
   }
-}
 
+  // 👇 UPDATE A BOOK - NOW INSIDE THE CLASS! 👇
+  @Patch('book/:bookId')
+  async updateBook(
+    @Request() req: any,
+    @Param('bookId') bookId: string,
+    @Body() body: any
+  ) {
+    return this.libraryService.updateBook(req.user.tenantId, bookId, body);
+  }
+}

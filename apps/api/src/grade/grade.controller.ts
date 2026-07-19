@@ -1,48 +1,24 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Put,
-  Body,
-  Param,
-  UseGuards,
-  Request,
-} from '@nestjs/common';
+import { Controller, Get, Post, Body, Query, Param, Req, UseGuards } from '@nestjs/common';
 import { GradeService } from './grade.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
-@Controller('grade')
 @UseGuards(JwtAuthGuard)
+@Controller('grade')
 export class GradeController {
   constructor(private readonly gradeService: GradeService) {}
 
-  // Record a grade for a student
-    @Post()
-  async recordGrade(@Request() req: any, @Body() body: { termId: string; examId: string; studentId: string; marksObtained: number; remarks?: string }) {
-    return this.gradeService.recordGrade(req.user.tenantId, body.termId, body.examId, body.studentId, body.marksObtained, body.remarks);
+  @Get('exam/:examId')
+  getGradesForExam(@Req() req: any, @Param('examId') examId: string) {
+    return this.gradeService.getGradesForExam(req.user.tenantId, examId);
   }
 
-  // Get all grades for a student
-  @Get('student/:studentId')
-  async getStudentGrades(
-    @Request() req: any,
-    @Param('studentId') studentId: string
-  ) {
-    return this.gradeService.getStudentGrades(req.user.tenantId, studentId);
+  @Post()
+  saveGrade(@Req() req: any, @Body() body: any) {
+    return this.gradeService.saveGrade(req.user.tenantId, body);
   }
 
-  // Update a grade
-  @Put(':id')
-  async updateGrade(
-    @Request() req: any,
-    @Param('id') id: string,
-    @Body() body: { marksObtained: number; remarks?: string }
-  ) {
-    return this.gradeService.updateGrade(
-      req.user.tenantId,
-      id,
-      body.marksObtained,
-      body.remarks
-    );
+  @Get('exams/class/:classId')
+  getExamsForClass(@Req() req: any, @Param('classId') classId: string) {
+    return this.gradeService.getExamsForClass(req.user.tenantId, classId);
   }
 }

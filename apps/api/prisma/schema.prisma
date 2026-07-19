@@ -110,16 +110,24 @@ model Grade {
   tenantId      String
   examId        String
   studentId     String
-  termId        String    // Added for easy report card generation
-  marksObtained Int
-  remarks       String?
+  termId        String
+  
+  mcqScore      Float     @default(0)   // NEW: MCQ component
+  theoryScore   Float     @default(0)   // NEW: Theory component
+  marksObtained Int       @default(0)   // KEEP: Auto-calculated total (mcq + theory)
+  remarks       String?   // Auto-calculated
+  grade         String?   // NEW: Auto-calculated A, B, C, D, F
+  
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
   exam          Exam      @relation(fields: [examId], references: [id])
   student       Student   @relation(fields: [studentId], references: [id])
   term          Term      @relation(fields: [termId], references: [id])
+
+  @@unique([examId, studentId])
 }
+
 
 model AcademicSession {
   id        String   @id @default(uuid())
