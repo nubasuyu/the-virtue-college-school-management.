@@ -7,7 +7,6 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 export class ReportCardController {
   constructor(private readonly reportCardService: ReportCardService) {}
 
-  // Generate a full report card for a student for a specific term
   @Get('student/:studentId/term/:termId')
   async generateReportCard(
     @Request() req: any,

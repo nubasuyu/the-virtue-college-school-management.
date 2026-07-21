@@ -83,7 +83,54 @@ model Student {
 
   submission    Submission[]
   borrowings    Borrowing[]
+
+  // NEW: Track when student joined for dynamic averaging
+  enrollmentTerm Int @default(1) // 1, 2, or 3
+  enrollmentSession String? // e.g., "2025/2026"
+
+  // Relations for Report Card
+  behaviorScores BehaviorScore[]
+  reportComments ReportComment[]
   
+}
+
+// NEW: For the "Behaviour and Skills" table
+model BehaviorScore {
+  id String @id @default(uuid())
+  studentId String
+  termId String
+  sessionId String
+
+  // Ratings 1-5 (5=Excellent, 1=Below Minimal)
+  attendance Int @default(0)
+  attentiveness Int @default(0)
+  cooperation Int @default(0)
+  willingness Int @default(0)
+  labour Int @default(0)
+  leadership Int @default(0)
+  neatness Int @default(0)
+  politeness Int @default(0)
+
+  student Student @relation(fields: [studentId], references: [id])
+  
+  @@unique([studentId, termId, sessionId])
+}
+
+// NEW: For the Comments section
+model ReportComment {
+  id String @id @default(uuid())
+  studentId String
+  termId String
+  sessionId String
+
+  teacherComment String?
+  houseMasterComment String?
+  principalComment String?
+  nextTermBegins String?
+
+  student Student @relation(fields: [studentId], references: [id])
+  
+  @@unique([studentId, termId, sessionId])
 }
 
 model Exam {

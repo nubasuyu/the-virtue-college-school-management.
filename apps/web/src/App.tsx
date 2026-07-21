@@ -13,6 +13,8 @@ import Attendance from './pages/Attendance';
 import Schedule from './pages/Schedule';
 import Library from './pages/Library';
 import Gradebook from './pages/Gradebook';
+import ReportCard from './pages/ReportCard';
+
 
 // Simple protected route wrapper
 const ProtectedRoute = ({ children }: { children: JSX.Element }) => {
@@ -53,6 +55,7 @@ function App() {
           <Route path="schedule" element={<Schedule />} />
           <Route path="library" element={<Library />} />
           <Route path="gradebook" element={<Gradebook />} />
+          <Route path="/report-card" element={<ReportCard />} />
         </Route>
 
         {/* Fallback */}

@@ -5,6 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 export class GradeService {
   constructor(private prisma: PrismaService) {}
 
+  // Auto-calculate Grade and Remark based on total marks
   private calculateGradeAndRemark(marksObtained: number, totalMarks: number) {
     const percentage = (marksObtained / totalMarks) * 100;
     
@@ -16,6 +17,7 @@ export class GradeService {
   }
 
   async getGradesForExam(tenantId: string, examId: string) {
+    // Get the exam details
     const exam = await this.prisma.exam.findUnique({
       where: { id: examId, tenantId },
       include: { class: true, subject: true },
@@ -23,15 +25,18 @@ export class GradeService {
 
     if (!exam) throw new NotFoundException('Exam not found');
 
+    // Get all students in the class
     const students = await this.prisma.student.findMany({
       where: { tenantId, currentClassId: exam.classId },
       orderBy: { firstName: 'asc' },
     });
 
+    // Get existing grades for this exam
     const grades = await this.prisma.grade.findMany({
       where: { tenantId, examId },
     });
 
+    // Map grades to students
     return students.map(student => {
       const studentGrade = grades.find(g => g.studentId === student.id);
       return {
@@ -43,6 +48,7 @@ export class GradeService {
         marksObtained: studentGrade?.marksObtained || 0,
         grade: studentGrade?.grade || '-',
         remarks: studentGrade?.remarks || '-',
+        gradeId: studentGrade?.id || null,
         totalMarks: exam.totalMarks,
       };
     });
@@ -52,25 +58,29 @@ export class GradeService {
     tenantId: string,
     data: { examId: string; studentId: string; mcqScore?: number; theoryScore?: number }
   ) {
+    // Get exam to know total marks
     const exam = await this.prisma.exam.findUnique({
       where: { id: data.examId },
     });
 
     if (!exam) throw new NotFoundException('Exam not found');
 
+    // Get existing grade to merge with new input
     const existing = await this.prisma.grade.findFirst({
       where: { tenantId, examId: data.examId, studentId: data.studentId },
     });
 
-    // Use the new value if provided, otherwise keep the existing one
+    // Calculate new scores (use existing if not provided)
     const newMcq = data.mcqScore !== undefined ? data.mcqScore : (existing?.mcqScore || 0);
     const newTheory = data.theoryScore !== undefined ? data.theoryScore : (existing?.theoryScore || 0);
     
-    // CRITICAL FIX: Calculate total correctly
+    // AUTO-ADD: Calculate Total
     const marksObtained = newMcq + newTheory;
 
+    // AUTO-GRADING: Calculate Grade and Remark
     const { grade, remarks } = this.calculateGradeAndRemark(marksObtained, exam.totalMarks);
 
+    // Upsert (Create or Update)
     return this.prisma.grade.upsert({
       where: {
         examId_studentId: {
