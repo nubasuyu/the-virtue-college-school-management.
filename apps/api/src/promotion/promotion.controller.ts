@@ -1,12 +1,4 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Body,
-  Param,
-  UseGuards,
-  Request,
-} from '@nestjs/common';
+import { Controller, Post, Get, Body, Param, UseGuards, Request } from '@nestjs/common';
 import { PromotionService } from './promotion.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
@@ -15,65 +7,21 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 export class PromotionController {
   constructor(private readonly promotionService: PromotionService) {}
 
-  // Promote a single student
-  @Post('student')
-  async promoteStudent(
+  @Get('class/:classId')
+  async getStudentsInClass(@Request() req: any, @Param('classId') classId: string) {
+    return this.promotionService.getStudentsByClass(req.user.tenantId, classId);
+  }
+
+  @Post('bulk')
+  async bulkPromote(
     @Request() req: any,
-    @Body()
-    body: {
-      studentId: string;
+    @Body() body: {
+      studentIds: string[];
       newClassId: string;
       sessionId: string;
+      status: 'PROMOTED' | 'REPEATED' | 'GRADUATED' | 'WITHDRAWN';
     }
   ) {
-    return this.promotionService.promoteStudent(
-      req.user.tenantId,
-      body.studentId,
-      body.newClassId,
-      body.sessionId
-    );
-  }
-
-  // Bulk promote all students in a class
-  @Post('bulk')
-  async bulkPromoteClass(
-    @Request() req: any,
-    @Body()
-    body: {
-      fromClassId: string;
-      toClassId: string;
-      sessionId: string;
-    }
-  ) {
-    return this.promotionService.bulkPromoteClass(
-      req.user.tenantId,
-      body.fromClassId,
-      body.toClassId,
-      body.sessionId
-    );
-  }
-
-  // Get promotion history for a student
-  @Get('student/:studentId')
-  async getStudentPromotionHistory(
-    @Request() req: any,
-    @Param('studentId') studentId: string
-  ) {
-    return this.promotionService.getStudentPromotionHistory(
-      req.user.tenantId,
-      studentId
-    );
-  }
-
-  // Get all promotions for a session
-  @Get('session/:sessionId')
-  async getSessionPromotions(
-    @Request() req: any,
-    @Param('sessionId') sessionId: string
-  ) {
-    return this.promotionService.getSessionPromotions(
-      req.user.tenantId,
-      sessionId
-    );
+    return this.promotionService.processPromotion(req.user.tenantId, body);
   }
 }

@@ -14,6 +14,7 @@ import Schedule from './pages/Schedule';
 import Library from './pages/Library';
 import Gradebook from './pages/Gradebook';
 import ReportCard from './pages/ReportCard';
+import Promotion from './pages/Promotion';
 
 
 // Simple protected route wrapper
@@ -56,6 +57,7 @@ function App() {
           <Route path="library" element={<Library />} />
           <Route path="gradebook" element={<Gradebook />} />
           <Route path="/report-card" element={<ReportCard />} />
+          <Route path="/promotion" element={<Promotion />} />
         </Route>
 
         {/* Fallback */}

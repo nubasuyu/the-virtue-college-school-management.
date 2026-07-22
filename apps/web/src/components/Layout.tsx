@@ -14,6 +14,7 @@ const navLinks = [
   { name: 'Library', path: '/library' },
   { name: 'Gradebook', path: '/gradebook' },
   { name: 'Report Card', path: '/report-card' },
+  { name: 'Promotions', path: '/promotion' },
 ];
 
 export default function Layout() {

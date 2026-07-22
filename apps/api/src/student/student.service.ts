@@ -1,36 +1,49 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+
+// Ideally, these should be in separate files: dto/create-student.dto.ts & dto/update-student.dto.ts
+export class CreateStudentDto {
+   firstName: string;
+  lastName: string;
+  admissionNo: string;
+  dateOfBirth: string; 
+  gender?: string;  // Expected format: "YYYY-MM-DD"
+  // ... other fields
+}
+
+export class UpdateStudentDto {
+  firstName?: string;
+  lastName?: string;
+  admissionNo?: string;
+  dateOfBirth?: string;
+  // ... other optional fields
+}
 
 @Injectable()
 export class StudentService {
   constructor(private prisma: PrismaService) {}
 
-  // Create a new student
-  async create(
-    tenantId: string,
-    data: any // Changed to 'any' to easily accept frontend JSON
-  ) {
-    return this.prisma.student.create({
-      data: {
-        ...data,
-        // 👇 CONVERT THE DATE STRING TO A DATE OBJECT 👇
-        dateOfBirth: new Date(data.dateOfBirth), 
-        tenantId,
-      },
-    });
+  async create(tenantId: string, data: CreateStudentDto) {
+  const dob = new Date(data.dateOfBirth);
+  if (isNaN(dob.getTime())) {
+    throw new BadRequestException('Invalid date format for dateOfBirth');
   }
 
-  // Get all students for the current tenant
+  return this.prisma.student.create({
+    data: {
+      ...data, // This now safely includes 'gender'
+      dateOfBirth: dob,
+      tenantId,
+    },
+  });
+}
   async findAll(tenantId: string) {
     return this.prisma.student.findMany({
       where: { tenantId },
-      orderBy: {
-        admissionNo: 'asc',
-      },
+      orderBy: { admissionNo: 'asc' },
     });
   }
 
-  // Get a single student by ID (with tenant check)
   async findOne(tenantId: string, id: string) {
     const student = await this.prisma.student.findUnique({
       where: { id },
@@ -47,29 +60,33 @@ export class StudentService {
     return student;
   }
 
-  // Update a student (with tenant check)
-  async update(
-    tenantId: string,
-    id: string,
-    data: any
-  ) {
-    // First check if student exists and belongs to this tenant
+  async update(tenantId: string, id: string, data: UpdateStudentDto) {
+    // 1. Verify existence and tenant ownership (throws if invalid)
     await this.findOne(tenantId, id);
 
-    // 👇 CONVERT THE DATE STRING IF IT EXISTS IN THE UPDATE 👇
-    if (data.dateOfBirth) {
-      data.dateOfBirth = new Date(data.dateOfBirth);
+    // 2. Prepare update data safely
+    const updateData: any = { ...data };
+
+    // 3. Handle date conversion safely if provided
+    if (updateData.dateOfBirth) {
+      const dob = new Date(updateData.dateOfBirth);
+      if (isNaN(dob.getTime())) {
+        throw new BadRequestException('Invalid date format for dateOfBirth');
+      }
+      updateData.dateOfBirth = dob;
     }
+
+    // 4. Explicitly prevent tenantId from being overwritten
+    delete updateData.tenantId;
 
     return this.prisma.student.update({
       where: { id },
-      data,
+      data: updateData,
     });
   }
 
-  // Delete a student (with tenant check)
   async delete(tenantId: string, id: string) {
-    // First check if student exists and belongs to this tenant
+    // Verify existence and tenant ownership first
     await this.findOne(tenantId, id);
 
     return this.prisma.student.delete({

@@ -7,45 +7,9 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Tenant {
-  id             String    @id @default(uuid())
-  name           String    @default("The Virtue College")
-  shortName      String    @default("TVC")
-  domain         String    @unique
-  primaryColor   String    @default("#5C4033")
-  secondaryColor String    @default("#FFFDD0")
-  users          User[]
-  students       Student[]
-  classes        Class[]
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-  subjects      Subject[]
-  attendance    Attendance[]
-}
-
-model User {
-  id           String     @id @default(uuid())
-  tenantId     String
-  tenant       Tenant     @relation(fields: [tenantId], references: [id])
-  email        String
-  passwordHash String
-  firstName    String
-  lastName     String
-  role         UserRole
-  isActive     Boolean    @default(true)
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
-
-  @@unique([tenantId, email])
-  @@index([tenantId, role])
-  classes Class[] @relation("ClassTeacher")
-
-  schedule       Schedule[]
-  assignment     Assignment[]
-  borrowings     Borrowing[]
-  announcements  Announcement[]
-}
-
+// ==========================================
+// ENUMS
+// ==========================================
 enum UserRole {
   SUPER_ADMIN
   SCHOOL_ADMIN
@@ -55,158 +19,225 @@ enum UserRole {
   ACCOUNTANT
 }
 
-model Student {
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  EXCUSED
+}
+
+// ==========================================
+// MODELS
+// ==========================================
+model Tenant {
   id             String   @id @default(uuid())
-  tenantId       String
-  admissionNo    String   @unique
-  firstName      String
-  lastName       String
-  dateOfBirth    DateTime
-  gender         String
-  email          String?
-  address        String?
-  parentName     String?
-  parentPhone    String?
-  parentEmail    String?
-  currentClassId String?
+  name           String   @default("The Virtue College")
+  shortName      String   @default("TVC")
+  domain         String   @unique
+  primaryColor   String   @default("#5C4033")
+  secondaryColor String   @default("#FFFDD0")
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  // --- RELATIONS (These were missing or incomplete) ---
-  tenant         Tenant   @relation(fields: [tenantId], references: [id])
-  currentClass   Class?   @relation("StudentCurrentClass", fields: [currentClassId], references: [id])
-  classHistories ClassHistory[]
-  grades         Grade[]
-  attendances    Attendance[] // Added this to fix the Attendance error
-  
-  payments       Payment[]
-
-  submission    Submission[]
-  borrowings    Borrowing[]
-
-  // NEW: Track when student joined for dynamic averaging
-  enrollmentTerm Int @default(1) // 1, 2, or 3
-  enrollmentSession String? // e.g., "2025/2026"
-
-  // Relations for Report Card
-  behaviorScores BehaviorScore[]
-  reportComments ReportComment[]
-  
+  users      User[]
+  students   Student[]
+  parents    Parent[] // 👈 Added exactly once
+  classes    Class[] // 👈 Added exactly once
+  subjects   Subject[]
+  attendance Attendance[]
 }
 
-// NEW: For the "Behaviour and Skills" table
+model User {
+  id           String   @id @default(uuid())
+  tenantId     String
+  tenant       Tenant   @relation(fields: [tenantId], references: [id])
+  email        String
+  passwordHash String
+  firstName    String
+  lastName     String
+  role         UserRole
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  classes       Class[]        @relation("ClassTeacher")
+  schedule      Schedule[]
+  assignment    Assignment[]
+  borrowings    Borrowing[]
+  announcements Announcement[]
+  parent        Parent? // 👈 Added exactly once (One-to-One)
+
+  @@unique([tenantId, email])
+  @@index([tenantId, role])
+}
+
+model Student {
+  id                String   @id @default(uuid())
+  tenantId          String
+  admissionNo       String   @unique
+  firstName         String
+  lastName          String
+  dateOfBirth       DateTime
+  gender            String?
+  email             String?
+  address           String?
+  parentName        String?
+  parentPhone       String?
+  parentEmail       String?
+  currentClassId    String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  enrollmentTerm    Int      @default(1)
+  enrollmentSession String?
+  parentPin         String?
+
+  tenant          Tenant            @relation(fields: [tenantId], references: [id])
+  currentClass    Class?            @relation("StudentCurrentClass", fields: [currentClassId], references: [id])
+  classHistories  ClassHistory[]
+  grades          Grade[]
+  attendances     Attendance[]
+  payments        Payment[]
+  submission      Submission[]
+  borrowings      Borrowing[]
+  behaviorScores  BehaviorScore[]
+  reportComments  ReportComment[]
+  academicHistory AcademicHistory[]
+
+  parents Parent[] @relation("StudentParents") // 👈 Added exactly once
+}
+
+model Parent {
+  id       String @id @default(uuid())
+  tenantId String
+
+  firstName String
+  lastName  String
+  phone     String
+  email     String?
+  relation  String?
+
+  userId String? @unique
+  user   User?   @relation(fields: [userId], references: [id])
+
+  students Student[] @relation("StudentParents") // 👈 Matches Student model exactly
+
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([email])
+}
+
 model BehaviorScore {
-  id String @id @default(uuid())
+  id        String @id @default(uuid())
   studentId String
-  termId String
+  termId    String
   sessionId String
 
-  // Ratings 1-5 (5=Excellent, 1=Below Minimal)
-  attendance Int @default(0)
+  attendance    Int @default(0)
   attentiveness Int @default(0)
-  cooperation Int @default(0)
-  willingness Int @default(0)
-  labour Int @default(0)
-  leadership Int @default(0)
-  neatness Int @default(0)
-  politeness Int @default(0)
+  cooperation   Int @default(0)
+  willingness   Int @default(0)
+  labour        Int @default(0)
+  leadership    Int @default(0)
+  neatness      Int @default(0)
+  politeness    Int @default(0)
 
   student Student @relation(fields: [studentId], references: [id])
-  
+
   @@unique([studentId, termId, sessionId])
 }
 
-// NEW: For the Comments section
 model ReportComment {
-  id String @id @default(uuid())
+  id        String @id @default(uuid())
   studentId String
-  termId String
+  termId    String
   sessionId String
 
-  teacherComment String?
+  teacherComment     String?
   houseMasterComment String?
-  principalComment String?
-  nextTermBegins String?
+  principalComment   String?
+  nextTermBegins     String?
 
   student Student @relation(fields: [studentId], references: [id])
-  
+
   @@unique([studentId, termId, sessionId])
 }
 
 model Exam {
-  id              String    @id @default(uuid())
-  tenantId        String
-  termId          String
-  name            String    // e.g., "CA Test 1", "Midterm Exam"
-  assessmentType  String    // "CA", "MIDTERM", "FINAL"
-  subjectId       String
-  classId         String
-  date            DateTime
-  totalMarks      Int       @default(100)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id             String   @id @default(uuid())
+  tenantId       String
+  termId         String
+  name           String
+  assessmentType String
+  subjectId      String
+  classId        String
+  date           DateTime
+  totalMarks     Int      @default(100)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  term            Term      @relation(fields: [termId], references: [id])
-  subject         Subject   @relation(fields: [subjectId], references: [id])
-  class           Class     @relation(fields: [classId], references: [id])
-  grades          Grade[]
+  term    Term    @relation(fields: [termId], references: [id])
+  subject Subject @relation(fields: [subjectId], references: [id])
+  class   Class   @relation(fields: [classId], references: [id])
+  grades  Grade[]
 }
 
 model Grade {
-  id            String    @id @default(uuid())
-  tenantId      String
-  examId        String
-  studentId     String
-  termId        String
-  
-  mcqScore      Float     @default(0)   // NEW: MCQ component
-  theoryScore   Float     @default(0)   // NEW: Theory component
-  marksObtained Int       @default(0)   // KEEP: Auto-calculated total (mcq + theory)
-  remarks       String?   // Auto-calculated
-  grade         String?   // NEW: Auto-calculated A, B, C, D, F
-  
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id        String @id @default(uuid())
+  tenantId  String
+  examId    String
+  studentId String
+  termId    String
 
-  exam          Exam      @relation(fields: [examId], references: [id])
-  student       Student   @relation(fields: [studentId], references: [id])
-  term          Term      @relation(fields: [termId], references: [id])
+  mcqScore      Float   @default(0)
+  theoryScore   Float   @default(0)
+  marksObtained Int     @default(0)
+  remarks       String?
+  grade         String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  exam    Exam    @relation(fields: [examId], references: [id])
+  student Student @relation(fields: [studentId], references: [id])
+  term    Term    @relation(fields: [termId], references: [id])
 
   @@unique([examId, studentId])
 }
 
-
 model AcademicSession {
   id        String   @id @default(uuid())
   tenantId  String
-  name      String   // e.g., "2025/2026"
+  name      String
   startDate DateTime
   endDate   DateTime
   isActive  Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  terms     Term[]
-  classHistories ClassHistory[]
+  terms           Term[]
+  classHistories  ClassHistory[]
+  academicHistory AcademicHistory[]
 }
 
 model Term {
   id        String   @id @default(uuid())
   tenantId  String
   sessionId String
-  name      String   // "First Term", "Second Term"
-  number    Int      // 1, 2, 3
+  name      String
+  number    Int
   startDate DateTime
   endDate   DateTime
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  session   AcademicSession @relation(fields: [sessionId], references: [id])
-  exams     Exam[]
-  grades    Grade[]
-  
-  feeStructures  FeeStructure[]
-  schedule       Schedule[]
+  session       AcademicSession @relation(fields: [sessionId], references: [id])
+  exams         Exam[]
+  grades        Grade[]
+  feeStructures FeeStructure[]
+  schedule      Schedule[]
 }
 
 model ClassHistory {
@@ -217,10 +248,11 @@ model ClassHistory {
   promoted  Boolean  @default(false)
   createdAt DateTime @default(now())
 
-  student   Student  @relation(fields: [studentId], references: [id])
-  class     Class    @relation(fields: [classId], references: [id])
-  session   AcademicSession @relation(fields: [sessionId], references: [id])
+  student Student         @relation(fields: [studentId], references: [id])
+  class   Class           @relation(fields: [classId], references: [id])
+  session AcademicSession @relation(fields: [sessionId], references: [id])
 }
+
 model Class {
   id             String   @id @default(uuid())
   tenantId       String
@@ -228,21 +260,21 @@ model Class {
   section        String
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
-
-  // --- RELATIONS ---
-  tenant         Tenant   @relation(fields: [tenantId], references: [id])
-  students       Student[] @relation("StudentCurrentClass")
-  classHistories ClassHistory[]
-  exams          Exam[]
-  attendances    Attendance[] // Added this to fix the Attendance error
-  
-  feeStructures  FeeStructure[]
-  schedule       Schedule[]
-  assignment     Assignment[]
-  announcements Announcement[]
   classTeacherId String?
-  classTeacher   User? @relation("ClassTeacher", fields: [classTeacherId], references: [id])
+
+  tenant          Tenant            @relation(fields: [tenantId], references: [id])
+  students        Student[]         @relation("StudentCurrentClass")
+  classHistories  ClassHistory[]
+  exams           Exam[]
+  attendances     Attendance[]
+  academicHistory AcademicHistory[]
+  feeStructures   FeeStructure[]
+  schedule        Schedule[]
+  assignment      Assignment[]
+  announcements   Announcement[]
+  classTeacher    User?             @relation("ClassTeacher", fields: [classTeacherId], references: [id])
 }
+
 model Subject {
   id          String   @id @default(uuid())
   tenantId    String
@@ -252,36 +284,28 @@ model Subject {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  tenant     Tenant       @relation(fields: [tenantId], references: [id])
+  exams      Exam[]
+  schedule   Schedule[]
+  assignment Assignment[]
 
   @@unique([tenantId, code])
-
-  exams         Exam[]
-  schedule      Schedule[]
-  assignment    Assignment[]
-}
-
-enum AttendanceStatus {
-  PRESENT
-  ABSENT
-  LATE
-  EXCUSED
 }
 
 model Attendance {
-  id        String            @id @default(uuid())
+  id        String           @id @default(uuid())
   tenantId  String
   studentId String
   classId   String
-  date      DateTime          @db.Date
-  status    AttendanceStatus  @default(PRESENT)
+  date      DateTime         @db.Date
+  status    AttendanceStatus @default(PRESENT)
   notes     String?
-  createdAt DateTime          @default(now())
-  updatedAt DateTime          @updatedAt
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
 
-  tenant    Tenant            @relation(fields: [tenantId], references: [id])
-  student   Student           @relation(fields: [studentId], references: [id])
-  class     Class             @relation(fields: [classId], references: [id])
+  tenant  Tenant  @relation(fields: [tenantId], references: [id])
+  student Student @relation(fields: [studentId], references: [id])
+  class   Class   @relation(fields: [classId], references: [id])
 
   @@unique([studentId, classId, date])
   @@index([tenantId, date])
@@ -290,9 +314,9 @@ model Attendance {
 model FeeStructure {
   id          String    @id @default(uuid())
   tenantId    String?
-  name        String    // e.g., "Tuition Fee", "Book Fee", "Uniform Fee"
+  name        String
   amount      Float
-  currency    String    @default("USD")  // e.g., "USD", "NGN", "GBP", "EUR"
+  currency    String    @default("USD")
   classId     String
   termId      String?
   description String
@@ -300,67 +324,74 @@ model FeeStructure {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  class       Class     @relation(fields: [classId], references: [id])
-  term        Term?      @relation(fields: [termId], references: [id])
-  payments    Payment[]
+  class    Class     @relation(fields: [classId], references: [id])
+  term     Term?     @relation(fields: [termId], references: [id])
+  payments Payment[]
 }
 
 model Payment {
-  id              String        @id @default(uuid())
-  tenantId        String
-  studentId       String
-  feeStructureId  String?       // Optional - if null, it's a general payment
-  amount          Float
-  currency        String        @default("USD")  // Currency of the payment
-  paymentDate     DateTime      @default(now())
-  paymentMethod   String        // "CASH", "BANK_TRANSFER", "CHECK", "ONLINE"
-  reference       String?       // Transaction reference number
-  remarks         String?
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  id             String   @id @default(uuid())
+  tenantId       String
+  studentId      String
+  feeStructureId String?
+  amount         Float
+  currency       String   @default("USD")
+  paymentDate    DateTime @default(now())
+  paymentMethod  String
+  reference      String?
+  remarks        String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  student         Student       @relation(fields: [studentId], references: [id])
-  feeStructure    FeeStructure? @relation(fields: [feeStructureId], references: [id])
+  student      Student       @relation(fields: [studentId], references: [id])
+  feeStructure FeeStructure? @relation(fields: [feeStructureId], references: [id])
 }
 
 model Schedule {
-  id         String   @id @default(uuid())
-  tenantId   String
-  
-  classId    String
-  subjectId  String
-  teacherId  String   // This will be the ID of a User with the TEACHER role
-  
-  dayOfWeek  String   // e.g., "MONDAY", "TUESDAY"
-  startTime  String   // e.g., "09:00"
-  endTime    String   // e.g., "10:30"
-  
-  roomName   String?  
-  termId     String?  
-  
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id        String   @id @default(uuid())
+  tenantId  String
+  classId   String
+  subjectId String
+  teacherId String
+  dayOfWeek String
+  startTime String
+  endTime   String
+  roomName  String?
+  termId    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  class      Class    @relation(fields: [classId], references: [id])
-  subject    Subject  @relation(fields: [subjectId], references: [id])
-  teacher    User     @relation(fields: [teacherId], references: [id]) // Linked to User!
-  term       Term?    @relation(fields: [termId], references: [id])
+  class   Class   @relation(fields: [classId], references: [id])
+  subject Subject @relation(fields: [subjectId], references: [id])
+  teacher User    @relation(fields: [teacherId], references: [id])
+  term    Term?   @relation(fields: [termId], references: [id])
+}
+
+model AcademicHistory {
+  id        String   @id @default(uuid())
+  studentId String
+  classId   String
+  sessionId String
+  status    String   @default("PROMOTED")
+  createdAt DateTime @default(now())
+
+  student Student         @relation(fields: [studentId], references: [id])
+  class   Class           @relation(fields: [classId], references: [id])
+  session AcademicSession @relation(fields: [sessionId], references: [id])
+
+  @@index([studentId])
 }
 
 model Assignment {
-  id          String       @id @default(uuid())
+  id          String   @id @default(uuid())
   tenantId    String
-  
   title       String
   description String?
-  
   subjectId   String
   classId     String
-  teacherId   String // The User (Teacher) who created it
-  
+  teacherId   String
   dueDate     DateTime
   totalMarks  Int      @default(100)
-  
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -371,98 +402,81 @@ model Assignment {
 }
 
 model Submission {
-  id            String     @id @default(uuid())
+  id            String   @id @default(uuid())
   tenantId      String
-  
   assignmentId  String
   studentId     String
-  
-  submittedAt   DateTime   @default(now())
-  content       String?    // Text submission or URL to an uploaded file
-  
-  marksObtained Int?       // Null until the teacher grades it
+  submittedAt   DateTime @default(now())
+  content       String?
+  marksObtained Int?
   feedback      String?
-  
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  assignment    Assignment @relation(fields: [assignmentId], references: [id])
-  student       Student    @relation(fields: [studentId], references: [id])
+  assignment Assignment @relation(fields: [assignmentId], references: [id])
+  student    Student    @relation(fields: [studentId], references: [id])
 }
 
 model Book {
-  id            String       @id @default(uuid())
+  id            String   @id @default(uuid())
   tenantId      String
-  
   title         String
   author        String
-  isbn          String?      // Optional ISBN
+  isbn          String?
   publisher     String?
   publishedYear Int?
-  category      String?      // e.g., "Fiction", "Science", "History"
+  category      String?
   description   String?
-  
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
-  
-  copies        BookCopy[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  copies BookCopy[]
 }
 
 model BookCopy {
-  id          String       @id @default(uuid())
-  tenantId    String
-  
-  bookId      String
-  copyNumber  Int          // e.g., Copy 1, Copy 2, etc.
-  status      String       @default("AVAILABLE") // "AVAILABLE", "BORROWED", "MAINTENANCE"
-  
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-  
-  book        Book         @relation(fields: [bookId], references: [id])
-  borrowings  Borrowing[]
+  id         String   @id @default(uuid())
+  tenantId   String
+  bookId     String
+  copyNumber Int
+  status     String   @default("AVAILABLE")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  book       Book        @relation(fields: [bookId], references: [id])
+  borrowings Borrowing[]
 }
 
 model Borrowing {
-  id           String       @id @default(uuid())
+  id           String    @id @default(uuid())
   tenantId     String
-  
   bookCopyId   String
-  studentId    String?      // Links to Student if borrowerType is STUDENT
-  userId       String?      // Links to User if borrowerType is TEACHER
-  
-  borrowerType String       // "STUDENT" or "TEACHER"
-  
-  borrowedAt   DateTime     @default(now())
+  studentId    String?
+  userId       String?
+  borrowerType String
+  borrowedAt   DateTime  @default(now())
   dueDate      DateTime
-  returnedAt   DateTime?    // Null if not yet returned
-  
-  fineAmount   Float        @default(0)
-  
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
-  
-  bookCopy     BookCopy     @relation(fields: [bookCopyId], references: [id])
-  student      Student?     @relation(fields: [studentId], references: [id])
-  user         User?        @relation(fields: [userId], references: [id])
+  returnedAt   DateTime?
+  fineAmount   Float     @default(0)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  bookCopy BookCopy @relation(fields: [bookCopyId], references: [id])
+  student  Student? @relation(fields: [studentId], references: [id])
+  user     User?    @relation(fields: [userId], references: [id])
 }
 
 model Announcement {
   id             String   @id @default(uuid())
   tenantId       String
-  
   title          String
   content        String
-  
-  authorId       String   // The User who posted it
-  targetAudience String   @default("ALL") // "ALL", "STUDENTS", "TEACHERS", "PARENTS", "SPECIFIC_CLASS"
-  targetClassId  String?  // Only used if targetAudience is SPECIFIC_CLASS
-  
-  isPinned       Boolean  @default(false) // Pinned notices appear first
-  
+  authorId       String
+  targetAudience String   @default("ALL")
+  targetClassId  String?
+  isPinned       Boolean  @default(false)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  author         User     @relation(fields: [authorId], references: [id])
-  targetClass    Class?   @relation(fields: [targetClassId], references: [id])
+  author      User   @relation(fields: [authorId], references: [id])
+  targetClass Class? @relation(fields: [targetClassId], references: [id])
 }

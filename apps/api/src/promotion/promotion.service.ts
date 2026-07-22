@@ -5,119 +5,74 @@ import { PrismaService } from '../prisma/prisma.service';
 export class PromotionService {
   constructor(private prisma: PrismaService) {}
 
-  // Promote a single student to a new class
-  async promoteStudent(
+  async processPromotion(
     tenantId: string,
-    studentId: string,
-    newClassId: string,
-    sessionId: string
+    data: {
+      studentIds: string[];
+      newClassId: string;
+      sessionId: string; 
+      status: 'PROMOTED' | 'REPEATED' | 'GRADUATED' | 'WITHDRAWN';
+    }
   ) {
-    // Get the student's current class
-    const student = await this.prisma.student.findFirst({
-      where: { id: studentId, tenantId },
-    });
+    const results = { success: 0, failed: 0, errors: [] as any[] };
 
-    if (!student) {
-      throw new Error('Student not found');
+    for (const studentId of data.studentIds) {
+      let student: any = null; // Declared outside try block so catch can see it
+      try {
+        student = await this.prisma.student.findUnique({
+          where: { id: studentId, tenantId },
+          select: { currentClassId: true, id: true, firstName: true, lastName: true }
+        });
+
+        if (!student) {
+          results.failed++;
+          results.errors.push({ studentId, name: 'Unknown', reason: 'Student not found' });
+          continue;
+        }
+
+        const oldClassId = student.currentClassId;
+
+        if (oldClassId) {
+          await this.prisma.academicHistory.create({
+            data: {
+              studentId: student.id,
+              classId: oldClassId,
+              sessionId: data.sessionId,
+              status: data.status,
+            }
+          });
+        }
+
+        await this.prisma.student.update({
+          where: { id: studentId },
+          data: { currentClassId: data.newClassId }
+        });
+
+        results.success++;
+      } catch (error: any) {
+        results.failed++;
+        results.errors.push({ 
+          studentId, 
+          name: student ? `${student.firstName} ${student.lastName}` : 'Unknown', 
+          reason: error.message 
+        });
+      }
     }
 
-    // Record the promotion in class history
-    const classHistory = await this.prisma.classHistory.create({
-      data: {
-        studentId,
-        classId: student.currentClassId || newClassId, // Record current class
-        sessionId,
-        promoted: true,
-      },
-      include: {
-        student: true,
-        class: true,
-        session: true,
-      },
-    });
-
-    // Update the student's current class
-    const updatedStudent = await this.prisma.student.update({
-      where: { id: studentId },
-      data: { currentClassId: newClassId },
-      include: {
-        currentClass: true,
-      },
-    });
-
-    return {
-      message: 'Student promoted successfully',
-      student: updatedStudent,
-      history: classHistory,
-    };
+    return results;
   }
 
-  // Bulk promote all students from one class to another
-  async bulkPromoteClass(
-    tenantId: string,
-    fromClassId: string,
-    toClassId: string,
-    sessionId: string
-  ) {
-    // Get all students in the source class
-    const students = await this.prisma.student.findMany({
-      where: { tenantId, currentClassId: fromClassId },
-    });
-
-    const results = [];
-
-    for (const student of students) {
-      // Record promotion in history
-      await this.prisma.classHistory.create({
-        data: {
-          studentId: student.id,
-          classId: fromClassId,
-          sessionId,
-          promoted: true,
-        },
-      });
-
-      // Update student's current class
-      const updatedStudent = await this.prisma.student.update({
-        where: { id: student.id },
-        data: { currentClassId: toClassId },
-      });
-
-      results.push({
-        studentId: student.id,
-        name: `${student.firstName} ${student.lastName}`,
-        promoted: true,
-      });
-    }
-
-    return {
-      message: `Successfully promoted ${results.length} students`,
-      promotedStudents: results,
-    };
-  }
-
-  // Get promotion history for a student
-  async getStudentPromotionHistory(tenantId: string, studentId: string) {
-    return this.prisma.classHistory.findMany({
-      where: { studentId },
-      include: {
-        class: true,
-        session: true,
+  async getStudentsByClass(tenantId: string, classId: string) {
+    return this.prisma.student.findMany({
+      where: { tenantId, currentClassId: classId },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        admissionNo: true,
+        currentClass: { select: { name: true, section: true } }
       },
-      orderBy: { createdAt: 'desc' },
-    });
-  }
-
-  // Get all promotions for a session
-  async getSessionPromotions(tenantId: string, sessionId: string) {
-    return this.prisma.classHistory.findMany({
-      where: { sessionId, promoted: true },
-      include: {
-        student: true,
-        class: true,
-        session: true,
-      },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { lastName: 'asc' }
     });
   }
 }
