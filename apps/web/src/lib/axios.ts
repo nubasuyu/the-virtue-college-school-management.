@@ -1,13 +1,10 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: 'http://localhost:3001', // Your NestJS backend URL
-  headers: {
-    'Content-Type': 'application/json',
-  },
+  baseURL: 'http://localhost:3001',
 });
 
-// Automatically attach the JWT token to every request if it exists
+// Automatically attach the token to every request
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
   if (token) {

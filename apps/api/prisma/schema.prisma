@@ -26,6 +26,23 @@ enum AttendanceStatus {
   EXCUSED
 }
 
+enum QuestionType {
+  MCQ
+  THEORY
+}
+
+enum AttemptStatus {
+  IN_PROGRESS
+  SUBMITTED
+  GRADED
+}
+
+enum GradingStatus {
+  PENDING_REVIEW
+  APPROVED
+  FLAGGED
+}
+
 // ==========================================
 // MODELS
 // ==========================================
@@ -41,10 +58,17 @@ model Tenant {
 
   users      User[]
   students   Student[]
-  parents    Parent[] // 👈 Added exactly once
-  classes    Class[] // 👈 Added exactly once
+  parents    Parent[]
+  classes    Class[]
   subjects   Subject[]
   attendance Attendance[]
+  
+  examQuestions   ExamQuestion[]
+  examOptions     ExamOption[]
+  examRubrics     ExamRubric[]
+  examAttempts    ExamAttempt[]
+  studentAnswers  StudentAnswer[]
+  aiGradingLogs   AIGradingLog[]
 }
 
 model User {
@@ -57,15 +81,22 @@ model User {
   lastName     String
   role         UserRole
   isActive     Boolean  @default(true)
+  
+  // 👇 NEW: Fingerprint / Biometric ID for staff
+  biometricId  String?  @unique 
+  
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  classes       Class[]        @relation("ClassTeacher")
-  schedule      Schedule[]
-  assignment    Assignment[]
-  borrowings    Borrowing[]
-  announcements Announcement[]
-  parent        Parent? // 👈 Added exactly once (One-to-One)
+  classes             Class[]        @relation("ClassTeacher")
+  schedule            Schedule[]
+  assignment          Assignment[]
+  borrowings          Borrowing[]
+  announcements       Announcement[]
+  parent              Parent? 
+  attendances         Attendance[]   // 👈 NEW: Relation to Attendance
+  
+  reviewedGradingLogs AIGradingLog[] @relation("AIGradingReviewer")
 
   @@unique([tenantId, email])
   @@index([tenantId, role])
@@ -85,17 +116,22 @@ model Student {
   parentPhone       String?
   parentEmail       String?
   currentClassId    String?
+  
+  // 👇 NEW: Fingerprint / Biometric ID for students
+  biometricId       String?  @unique
+  
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
   enrollmentTerm    Int      @default(1)
   enrollmentSession String?
   parentPin         String?
+  passwordHash      String          
 
   tenant          Tenant            @relation(fields: [tenantId], references: [id])
   currentClass    Class?            @relation("StudentCurrentClass", fields: [currentClassId], references: [id])
   classHistories  ClassHistory[]
   grades          Grade[]
-  attendances     Attendance[]
+  attendances     Attendance[]      // 👈 NEW: Relation to Attendance
   payments        Payment[]
   submission      Submission[]
   borrowings      Borrowing[]
@@ -103,7 +139,8 @@ model Student {
   reportComments  ReportComment[]
   academicHistory AcademicHistory[]
 
-  parents Parent[] @relation("StudentParents") // 👈 Added exactly once
+  parents Parent[] @relation("StudentParents")
+  examAttempts ExamAttempt[]
 }
 
 model Parent {
@@ -119,7 +156,7 @@ model Parent {
   userId String? @unique
   user   User?   @relation(fields: [userId], references: [id])
 
-  students Student[] @relation("StudentParents") // 👈 Matches Student model exactly
+  students Student[] @relation("StudentParents")
 
   tenant    Tenant   @relation(fields: [tenantId], references: [id])
   createdAt DateTime @default(now())
@@ -178,10 +215,17 @@ model Exam {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  term    Term    @relation(fields: [termId], references: [id])
-  subject Subject @relation(fields: [subjectId], references: [id])
-  class   Class   @relation(fields: [classId], references: [id])
-  grades  Grade[]
+  isOnline        Boolean  @default(false)
+  durationMins    Int?     
+  shuffleOptions  Boolean  @default(false)
+
+  term       Term           @relation(fields: [termId], references: [id])
+  subject    Subject        @relation(fields: [subjectId], references: [id])
+  class      Class          @relation(fields: [classId], references: [id])
+  grades     Grade[]
+  
+  questions  ExamQuestion[]
+  attempts   ExamAttempt[]
 }
 
 model Grade {
@@ -292,23 +336,43 @@ model Subject {
   @@unique([tenantId, code])
 }
 
+// 👇 COMPLETELY UPGRADED ATTENDANCE MODEL
 model Attendance {
-  id        String           @id @default(uuid())
-  tenantId  String
-  studentId String
-  classId   String
-  date      DateTime         @db.Date
-  status    AttendanceStatus @default(PRESENT)
-  notes     String?
-  createdAt DateTime         @default(now())
-  updatedAt DateTime         @updatedAt
+  id             String            @id @default(uuid())
+  tenantId       String
+  
+  // 👇 POLYMORPHIC: Can be a Student OR a Staff User
+  studentId      String?
+  userId         String?
+  
+  classId        String?           // Only applicable for students
+  
+  date           DateTime          @db.Date
+  
+  // 👇 DAILY SCAN TRACKING (Morning & Afternoon)
+  checkInTime    DateTime?
+  checkOutTime   DateTime?
+  
+  status         AttendanceStatus  @default(ABSENT)
+  
+  // 👇 BIOMETRIC / FINGERPRINT TRACKING
+  biometricId    String?           // The template ID returned by the scanner
+  deviceName     String?           // e.g., "Main Gate Scanner", "Staff Room Scanner"
+  notes          String?
+  
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
 
-  tenant  Tenant  @relation(fields: [tenantId], references: [id])
-  student Student @relation(fields: [studentId], references: [id])
-  class   Class   @relation(fields: [classId], references: [id])
+  tenant   Tenant   @relation(fields: [tenantId], references: [id])
+  student  Student? @relation(fields: [studentId], references: [id])
+  user     User?    @relation(fields: [userId], references: [id])
+  class    Class?   @relation(fields: [classId], references: [id])
 
-  @@unique([studentId, classId, date])
+  // 👇 CONSTRAINTS: One record per person, per day
+  @@unique([studentId, date])
+  @@unique([userId, date])
   @@index([tenantId, date])
+  @@index([biometricId]) // Fast lookup when fingerprint is scanned
 }
 
 model FeeStructure {
@@ -479,4 +543,108 @@ model Announcement {
 
   author      User   @relation(fields: [authorId], references: [id])
   targetClass Class? @relation(fields: [targetClassId], references: [id])
+}
+
+model ExamQuestion {
+  id           String        @id @default(uuid())
+  tenantId     String
+  examId       String
+  type         QuestionType
+  questionText String        @db.Text
+  maxPoints    Float
+  orderIndex   Int
+
+  tenant       Tenant        @relation(fields: [tenantId], references: [id])
+  exam         Exam          @relation(fields: [examId], references: [id], onDelete: Cascade)
+  options      ExamOption[]
+  rubric       ExamRubric?
+  answers      StudentAnswer[]
+
+  @@index([examId])
+  @@index([tenantId])
+}
+
+model ExamOption {
+  id           String       @id @default(uuid())
+  tenantId     String
+  questionId   String
+  optionText   String
+  isCorrect    Boolean      @default(false)
+
+  tenant       Tenant       @relation(fields: [tenantId], references: [id])
+  question     ExamQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  studentAnswers StudentAnswer[]
+
+  @@index([questionId])
+}
+
+model ExamRubric {
+  id                String   @id @default(uuid())
+  tenantId          String
+  questionId        String   @unique
+  modelAnswer       String   @db.Text
+  gradingCriteria   Json     
+
+  tenant            Tenant       @relation(fields: [tenantId], references: [id])
+  question          ExamQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+}
+
+model ExamAttempt {
+  id              String        @id @default(uuid())
+  tenantId        String
+  examId          String
+  studentId       String
+  startTime       DateTime      @default(now())
+  submitTime      DateTime?
+  status          AttemptStatus @default(IN_PROGRESS)
+  focusViolations Int           @default(0)
+
+  tenant          Tenant        @relation(fields: [tenantId], references: [id])
+  exam            Exam          @relation(fields: [examId], references: [id])
+  student         Student       @relation(fields: [studentId], references: [id])
+  answers         StudentAnswer[]
+
+  @@unique([examId, studentId])
+  @@index([tenantId])
+  @@index([studentId])
+}
+
+model StudentAnswer {
+  id               String        @id @default(uuid())
+  tenantId         String
+  attemptId        String
+  questionId       String
+  selectedOptionId String?       
+  submittedText    String?       @db.Text 
+  autoGradeScore   Float         @default(0)
+  lastSavedAt      DateTime      @default(now())
+
+  tenant           Tenant        @relation(fields: [tenantId], references: [id])
+  attempt          ExamAttempt   @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question         ExamQuestion  @relation(fields: [questionId], references: [id])
+  selectedOption   ExamOption?   @relation(fields: [selectedOptionId], references: [id])
+  aiGradingLog     AIGradingLog?
+
+  @@unique([attemptId, questionId])
+}
+
+model AIGradingLog {
+  id                   String        @id @default(uuid())
+  tenantId             String
+  studentAnswerId      String        @unique
+  aiSuggestedScore     Float?
+  aiConfidence         Float?        
+  aiFeedback           String?       @db.Text
+  teacherFinalScore    Float?
+  teacherFinalFeedback String?       @db.Text
+  status               GradingStatus @default(PENDING_REVIEW)
+  reviewedById         String?
+  reviewedAt           DateTime?
+
+  tenant               Tenant        @relation(fields: [tenantId], references: [id])
+  studentAnswer        StudentAnswer @relation(fields: [studentAnswerId], references: [id], onDelete: Cascade)
+  reviewedBy           User?         @relation("AIGradingReviewer", fields: [reviewedById], references: [id])
+
+  @@index([tenantId])
+  @@index([status])
 }

@@ -14,7 +14,21 @@ export default function Students() {
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editStudent, setEditStudent] = useState<any>(null); // 👈 NEW: Track which student is being edited
+  const [editStudent, setEditStudent] = useState<any>(null);
+  
+  // ✅ NEW: Track the logged-in user's role
+  const [user, setUser] = useState<any>(null);
+
+  useEffect(() => {
+    // Fetch students
+    fetchStudents();
+    
+    // Fetch user role from localStorage
+    const storedUser = localStorage.getItem('user');
+    if (storedUser) {
+      setUser(JSON.parse(storedUser));
+    }
+  }, []);
 
   const fetchStudents = async () => {
     try {
@@ -27,11 +41,11 @@ export default function Students() {
     }
   };
 
-  useEffect(() => {
-    fetchStudents();
-  }, []);
+  // ✅ NEW: Permission checks based on role
+  const canAdd = user?.role && ['SUPER_ADMIN', 'SCHOOL_ADMIN'].includes(user.role);
+  const canEdit = user?.role && ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'TEACHER'].includes(user.role);
+  const canDelete = user?.role && ['SUPER_ADMIN', 'SCHOOL_ADMIN'].includes(user.role);
 
-  // 👇 NEW: Handle Delete
   const handleDelete = async (id: string, name: string) => {
     if (window.confirm(`Are you sure you want to delete ${name}? This cannot be undone.`)) {
       try {
@@ -43,13 +57,11 @@ export default function Students() {
     }
   };
 
-  // 👇 NEW: Handle Edit
   const handleEdit = (student: any) => {
     setEditStudent(student);
     setIsModalOpen(true);
   };
 
-  // 👇 NEW: Handle closing modal (clears edit state)
   const handleCloseModal = () => {
     setEditStudent(null);
     setIsModalOpen(false);
@@ -61,12 +73,16 @@ export default function Students() {
     <div className="bg-white rounded-lg shadow p-6">
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold text-gray-800">All Students</h2>
-        <button 
-          onClick={() => { setEditStudent(null); setIsModalOpen(true); }} // 👈 Clear edit state when adding new
-          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition font-medium"
-        >
-          + Add New Student
-        </button>
+        
+        {/* ✅ ONLY show Add button for Admins */}
+        {canAdd && (
+          <button 
+            onClick={() => { setEditStudent(null); setIsModalOpen(true); }}
+            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition font-medium"
+          >
+            + Add New Student
+          </button>
+        )}
       </div>
       
       <div className="overflow-x-auto">
@@ -83,7 +99,7 @@ export default function Students() {
             {students.length === 0 ? (
               <tr>
                 <td colSpan={4} className="px-6 py-8 text-center text-gray-500">
-                  No students found. Add your first student!
+                  No students found.
                 </td>
               </tr>
             ) : (
@@ -95,18 +111,30 @@ export default function Students() {
                   </td>
                   <td className="px-6 py-4">{student.gender}</td>
                   <td className="px-6 py-4">
-                    <button 
-                      onClick={() => handleEdit(student)} 
-                      className="text-blue-600 hover:underline mr-3"
-                    >
-                      Edit
-                    </button>
-                    <button 
-                      onClick={() => handleDelete(student.id, `${student.firstName} ${student.lastName}`)} 
-                      className="text-red-600 hover:underline"
-                    >
-                      Delete
-                    </button>
+                    {/* ✅ ONLY show Edit button for Admins and Teachers */}
+                    {canEdit && (
+                      <button 
+                        onClick={() => handleEdit(student)} 
+                        className="text-blue-600 hover:underline mr-3"
+                      >
+                        Edit
+                      </button>
+                    )}
+                    
+                    {/* ✅ ONLY show Delete button for Admins */}
+                    {canDelete && (
+                      <button 
+                        onClick={() => handleDelete(student.id, `${student.firstName} ${student.lastName}`)} 
+                        className="text-red-600 hover:underline"
+                      >
+                        Delete
+                      </button>
+                    )}
+                    
+                    {/* Fallback for users who can view but not edit/delete (e.g., Accountants) */}
+                    {!canEdit && !canDelete && (
+                      <span className="text-gray-400 text-xs">View Only</span>
+                    )}
                   </td>
                 </tr>
               ))
@@ -120,7 +148,7 @@ export default function Students() {
         isOpen={isModalOpen} 
         onClose={handleCloseModal} 
         onStudentSaved={fetchStudents} 
-        editStudent={editStudent} // 👈 Pass the student to edit (or null)
+        editStudent={editStudent} 
       />
     </div>
   );

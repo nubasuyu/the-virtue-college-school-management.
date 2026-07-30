@@ -1,50 +1,53 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
-import { UserService } from '../user/user.service';
-import * as bcrypt from 'bcryptjs';
+import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class AuthService {
   constructor(
-    private userService: UserService,
+    private prisma: PrismaService,
     private jwtService: JwtService,
   ) {}
 
-  async register(email: string, password: string, firstName: string, lastName: string) {
-    // Check if user already exists
-    const existingUser = await this.userService.findByEmail(email);
-    if (existingUser) {
-      throw new UnauthorizedException('Email already registered');
+  async validateUser(email: string, password: string): Promise<any> {
+    const lowerCaseEmail = email.toLowerCase();
+
+    // 1. First, check the User table (Admins, Teachers, Staff, Parents)
+    const user = await this.prisma.user.findFirst({
+      where: { email: lowerCaseEmail },
+    });
+
+    if (user && user.passwordHash && (await bcrypt.compare(password, user.passwordHash))) {
+      const { passwordHash, ...result } = user;
+      return result; // Returns id, email, role, tenantId, firstName, lastName, etc.
     }
 
-    const user = await this.userService.create(email, password, firstName, lastName);
-    return this.generateToken(user);
+    // 2. If not found in User table, check the Student table
+    const student = await this.prisma.student.findFirst({
+      where: { email: lowerCaseEmail },
+    });
+
+    if (student && student.passwordHash && (await bcrypt.compare(password, student.passwordHash))) {
+      const { passwordHash, ...result } = student;
+      return {
+        ...result,
+        role: 'STUDENT', // Ensure the role is explicitly set to STUDENT for the JWT
+      };
+    }
+
+    // 3. If neither matches, return null (which triggers Unauthorized)
+    return null;
   }
 
-  async login(email: string, password: string) {
-    const user = await this.userService.findByEmail(email);
-    
-    if (!user) {
-      throw new UnauthorizedException('Invalid credentials');
-    }
-
-    const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
-    
-    if (!isPasswordValid) {
-      throw new UnauthorizedException('Invalid credentials');
-    }
-
-    return this.generateToken(user);
-  }
-
-  private generateToken(user: any) {
+  async login(user: any) {
     const payload = { 
       sub: user.id, 
       email: user.email, 
-      role: user.role,
+      role: user.role, 
       tenantId: user.tenantId 
     };
-    
+
     return {
       access_token: this.jwtService.sign(payload),
       user: {
@@ -53,6 +56,7 @@ export class AuthService {
         firstName: user.firstName,
         lastName: user.lastName,
         role: user.role,
+        tenantId: user.tenantId,
       },
     };
   }

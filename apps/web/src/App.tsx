@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Layout from './components/Layout';
@@ -15,52 +15,77 @@ import Library from './pages/Library';
 import Gradebook from './pages/Gradebook';
 import ReportCard from './pages/ReportCard';
 import Promotion from './pages/Promotion';
+import ExamCreationForm from './components/exams/ExamCreationForm';
+import BulkUploadTest from './pages/BulkUploadTest';
+import StudentExamInterface from './pages/StudentExamInterface';
+import StudentExamsList from './pages/StudentExamsList';
+import TeacherGradingDashboard from './pages/TeacherGradingDashboard'; // ✅ ADDED
 
-
-// Simple protected route wrapper
-const ProtectedRoute = ({ children }: { children: JSX.Element }) => {
+const ProtectedRoute = ({ children, allowedRoles }: { children: React.ReactNode; allowedRoles: string[] }) => {
+  const location = useLocation();
   const token = localStorage.getItem('token');
-  if (!token) {
-    return <Navigate to="/login" replace />;
+  const storedUser = localStorage.getItem('user');
+  const user = storedUser ? JSON.parse(storedUser) : null;
+
+  if (!token || !user) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
   }
-  return children;
+
+  if (!allowedRoles.includes(user.role)) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-cream-100">
+        <div className="text-center bg-white p-8 rounded-xl shadow-lg border border-gray-200">
+          <h1 className="text-6xl font-bold text-red-600 mb-4">403</h1>
+          <h2 className="text-2xl font-semibold text-brown-800 mb-2">Access Denied</h2>
+          <p className="text-gray-600 mb-6">You don't have permission to view this page.</p>
+          <button onClick={() => window.history.back()} className="px-6 py-2 bg-brown-800 text-cream-50 rounded-lg hover:bg-brown-900 transition font-medium">
+            Go Back
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return <>{children}</>;
 };
 
 function App() {
   return (
     <Router>
       <Routes>
-        {/* Public Route */}
         <Route path="/login" element={<Login />} />
         
-        {/* Protected Routes wrapped in Layout */}
-        <Route 
-          path="/" 
-          element={
-            <ProtectedRoute>
-              <Layout />
-            </ProtectedRoute>
-          }
-        >
-          {/* Default redirect to dashboard */}
+        <Route path="/" element={
+          <ProtectedRoute allowedRoles={['SUPER_ADMIN', 'SCHOOL_ADMIN', 'TEACHER', 'STUDENT', 'PARENT', 'ACCOUNTANT']}>
+            <Layout />
+          </ProtectedRoute>
+        }>
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="dashboard" element={<Dashboard />} />
-          <Route path="students" element={<Students />} /> 
-          <Route path="teachers" element={<Teachers />} />
-          <Route path="classes" element={<Classes />} />
-          <Route path="subjects" element={<Subjects />} />
-          <Route path="fees" element={<Fees />} />
-          <Route path="payments" element={<Payments />} />
-          <Route path="announcements" element={<Announcements />} />
-          <Route path="attendance" element={<Attendance />} />
-          <Route path="schedule" element={<Schedule />} />
-          <Route path="library" element={<Library />} />
-          <Route path="gradebook" element={<Gradebook />} />
-          <Route path="/report-card" element={<ReportCard />} />
-          <Route path="/promotion" element={<Promotion />} />
+          
+          <Route path="students" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'SCHOOL_ADMIN', 'TEACHER', 'ACCOUNTANT']}><Students /></ProtectedRoute>} />
+          <Route path="teachers" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'SCHOOL_ADMIN']}><Teachers /></ProtectedRoute>} />
+          <Route path="classes" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'SCHOOL_ADMIN', 'TEACHER']}><Classes /></ProtectedRoute>} />
+          <Route path="subjects" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'SCHOOL_ADMIN', 'TEACHER']}><Subjects /></ProtectedRoute>} />
+          <Route path="fees" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'SCHOOL_ADMIN', 'ACCOUNTANT', 'PARENT']}><Fees /></ProtectedRoute>} />
+          <Route path="payments" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'SCHOOL_ADMIN', 'ACCOUNTANT', 'PARENT']}><Payments /></ProtectedRoute>} />
+          <Route path="announcements" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'SCHOOL_ADMIN', 'TEACHER', 'STUDENT', 'PARENT', 'ACCOUNTANT']}><Announcements /></ProtectedRoute>} />
+          <Route path="attendance" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'SCHOOL_ADMIN', 'TEACHER']}><Attendance /></ProtectedRoute>} />
+          <Route path="schedule" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'SCHOOL_ADMIN', 'TEACHER', 'STUDENT', 'PARENT']}><Schedule /></ProtectedRoute>} />
+          <Route path="library" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'SCHOOL_ADMIN', 'TEACHER', 'STUDENT', 'PARENT']}><Library /></ProtectedRoute>} />
+          <Route path="gradebook" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'SCHOOL_ADMIN', 'TEACHER']}><Gradebook /></ProtectedRoute>} />
+          <Route path="report-card" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'SCHOOL_ADMIN', 'TEACHER', 'STUDENT', 'PARENT']}><ReportCard /></ProtectedRoute>} />
+          <Route path="promotion" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'SCHOOL_ADMIN']}><Promotion /></ProtectedRoute>} />
+          <Route path="exams/create" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'SCHOOL_ADMIN', 'TEACHER']}><ExamCreationForm /></ProtectedRoute>} />
+          <Route path="test-bulk-upload" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'SCHOOL_ADMIN', 'TEACHER']}><BulkUploadTest /></ProtectedRoute>} />
+          <Route path="exam/:examId" element={<ProtectedRoute allowedRoles={['STUDENT', 'TEACHER', 'SUPER_ADMIN', 'SCHOOL_ADMIN']}><StudentExamInterface /></ProtectedRoute>} />
+          <Route path="my-exams" element={<ProtectedRoute allowedRoles={['STUDENT', 'TEACHER']}><StudentExamsList /></ProtectedRoute>} />
+          
+          {/* ✅ NEW: Teacher Grading Dashboard Route */}
+          <Route path="grading" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'SCHOOL_ADMIN', 'TEACHER']}><TeacherGradingDashboard /></ProtectedRoute>} />
+          <Route path="grading/:examId" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'SCHOOL_ADMIN', 'TEACHER']}><TeacherGradingDashboard /></ProtectedRoute>} />
         </Route>
 
-        {/* Fallback */}
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </Router>

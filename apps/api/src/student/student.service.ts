@@ -1,13 +1,15 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import * as bcrypt from 'bcryptjs'; // ✅ Added bcrypt import (use 'bcrypt' if that's what you have installed)
 
 // Ideally, these should be in separate files: dto/create-student.dto.ts & dto/update-student.dto.ts
 export class CreateStudentDto {
-   firstName: string;
+  firstName: string;
   lastName: string;
   admissionNo: string;
   dateOfBirth: string; 
-  gender?: string;  // Expected format: "YYYY-MM-DD"
+  gender?: string;
+  email?: string; // Added email in case it's passed from the frontend
   // ... other fields
 }
 
@@ -16,6 +18,7 @@ export class UpdateStudentDto {
   lastName?: string;
   admissionNo?: string;
   dateOfBirth?: string;
+  email?: string;
   // ... other optional fields
 }
 
@@ -24,19 +27,25 @@ export class StudentService {
   constructor(private prisma: PrismaService) {}
 
   async create(tenantId: string, data: CreateStudentDto) {
-  const dob = new Date(data.dateOfBirth);
-  if (isNaN(dob.getTime())) {
-    throw new BadRequestException('Invalid date format for dateOfBirth');
+    const dob = new Date(data.dateOfBirth);
+    if (isNaN(dob.getTime())) {
+      throw new BadRequestException('Invalid date format for dateOfBirth');
+    }
+
+    // ✅ Generate a default password hash for the new student
+    const defaultPassword = 'student123'; 
+    const passwordHash = await bcrypt.hash(defaultPassword, 10);
+
+    return this.prisma.student.create({
+      data: {
+        ...data, 
+        dateOfBirth: dob,
+        tenantId,
+        passwordHash, // ✅ Added the required passwordHash field
+      },
+    });
   }
 
-  return this.prisma.student.create({
-    data: {
-      ...data, // This now safely includes 'gender'
-      dateOfBirth: dob,
-      tenantId,
-    },
-  });
-}
   async findAll(tenantId: string) {
     return this.prisma.student.findMany({
       where: { tenantId },

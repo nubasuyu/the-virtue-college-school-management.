@@ -21,13 +21,16 @@ import { AssignmentModule } from './assignment/assignment.module';
 import { LibraryModule } from './library/library.module';
 import { AnnouncementModule } from './announcement/announcement.module';
 import { ParentModule } from './parent/parent.module';
+import { UploadModule } from './upload/upload.module';
+import { EmailModule } from './email/email.module';
+
 
 
 
 
 
 @Module({
-  imports: [PrismaModule, AuthModule, UserModule, StudentModule, ClassModule, TeacherModule, SubjectModule, AttendanceModule, ExamModule, GradeModule, AcademicSessionModule, TermModule, ReportCardModule, PromotionModule, FeesModule, ScheduleModule, AssignmentModule, LibraryModule, AnnouncementModule, ParentModule,], 
+  imports: [PrismaModule, AuthModule, UserModule, StudentModule, ClassModule, TeacherModule, SubjectModule, AttendanceModule, ExamModule, GradeModule, AcademicSessionModule, TermModule, ReportCardModule, PromotionModule, FeesModule, ScheduleModule, AssignmentModule, LibraryModule, AnnouncementModule, ParentModule, UploadModule, EmailModule,], 
   controllers: [AppController],
   providers: [AppService],
 })
