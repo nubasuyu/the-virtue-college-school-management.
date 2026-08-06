@@ -1,23 +1,24 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
+import { ValidationPipe } from '@nestjs/common';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   
-  // 👇 BULLETPROOF CORS CONFIGURATION 👇
-  /* app.enableCors({
-    origin: '*', // Allow requests from any frontend (Vite, etc.)
-    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS', // Explicitly allow OPTIONS
-    allowedHeaders: 'Content-Type, Authorization, Accept, X-Requested-With',
-  });  */
-
+  // 👇 BULLETPROOF CORS CONFIGURATION FOR DEPLOYMENT 👇
   app.enableCors({
-  origin: '*', // Allows your Vercel frontend to talk to this backend
-  methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
-  credentials: true,
-});
+    origin: '*', // Allows your Vercel frontend (or Postman) to talk to this backend
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+    credentials: true,
+  });
 
-  await app.listen(3001);
-  console.log(`Application is running on: http://localhost:3001`);
+  // Keeps your DTO validation working perfectly in production
+  app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+
+  // ⚠️ CRITICAL FOR RENDER: Listen on the port Render provides, fallback to 3001 locally
+  const port = process.env.PORT || 3001;
+  await app.listen(port);
+  console.log(`Application is running on port: ${port}`);
 }
+
 bootstrap();
