@@ -3,11 +3,11 @@ import { ParentService } from './parent.service';
 import { CreateParentDto } from './dto/create-parent.dto';
 import { UpdateParentDto } from './dto/update-parent.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { RolesGuard } from '../auth/guards/roles.guard'; // 👈 Import RolesGuard
-import { Roles } from '../auth/decorators/roles.decorator'; // 👈 Import Roles decorator
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
 
 @Controller('parents')
-@UseGuards(JwtAuthGuard, RolesGuard) // 👈 Apply both guards to the whole controller
+@UseGuards(JwtAuthGuard, RolesGuard)
 export class ParentController {
   constructor(private readonly parentService: ParentService) {}
 
@@ -22,9 +22,15 @@ export class ParentController {
   @Get('me')
   @Roles('PARENT', 'SCHOOL_ADMIN', 'SUPER_ADMIN')
   async getMyProfile(@Req() req: any) {
-    // Find the parent record linked to the logged-in user's ID
     const parent = await this.parentService.findOneByUserId(req.user.userId, req.user.tenantId);
     return parent;
+  }
+
+  // 👇 NEW: Get the logged-in parent's children
+  @Get('my-children')
+  @Roles('PARENT', 'SCHOOL_ADMIN', 'SUPER_ADMIN')
+  async getMyChildren(@Req() req: any) {
+    return this.parentService.getMyChildren(req.user.userId, req.user.tenantId);
   }
 
   @Get(':id')

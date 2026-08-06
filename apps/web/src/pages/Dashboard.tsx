@@ -1,259 +1,219 @@
 import { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import api from '../lib/axios';
-import { CheckCircle, AlertTriangle, Edit2, Save } from 'lucide-react';
+import { BookOpen, DollarSign, TrendingUp, Users, Calendar, FileText, CheckCircle } from 'lucide-react';
 
-export default function TeacherGradingDashboard() {
-  const { examId } = useParams<{ examId: string }>();
+export default function Dashboard() {
   const navigate = useNavigate();
-  
-  const [exams, setExams] = useState<any[]>([]);
-  const [selectedExamId, setSelectedExamId] = useState(examId || '');
-  const [pendingGrades, setPendingGrades] = useState<any[]>([]);
+  const storedUser = localStorage.getItem('user');
+  const user = storedUser ? JSON.parse(storedUser) : null;
+  const role = user?.role;
+
+  const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [editingLogId, setEditingLogId] = useState<string | null>(null);
-  const [editScore, setEditScore] = useState<number>(0);
-  const [editFeedback, setEditFeedback] = useState('');
-  const [message, setMessage] = useState('');
+  const [announcements, setAnnouncements] = useState<any[]>([]);
 
-  // 1. Fetch all exams for the dropdown
   useEffect(() => {
-    api.get('/exams')
-      .then(res => setExams(res.data))
-      .catch(console.error);
-  }, []);
+    const fetchStats = async () => {
+      try {
+        if (role === 'PARENT') {
+          // 👇 DYNAMICALLY get the first child's ID from the user object
+          const studentId = user?.children?.[0]?.id;
+          
+          if (studentId) {
+            const res = await api.get(`/fees/student/${studentId}/summary`);
+            setStats(res.data);
+          } else {
+            // Fallback if no children are linked to the parent account yet
+            setStats({ 
+              student: { name: 'No children linked', admissionNo: 'N/A' }, 
+              summary: { balance: 0, totalExpected: 0, totalPaid: 0 } 
+            });
+          }
+        } else if (role === 'STUDENT') {
+          setStats({ isStudent: true });
+        } else {
+          setStats({ isAdmin: true });
+        }
+      } catch (error) {
+        console.error('Failed to fetch dashboard stats:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  // 2. Fetch pending grades when exam is selected
-  useEffect(() => {
-    if (selectedExamId) {
-      fetchPendingGrades(selectedExamId);
-    } else {
-      setLoading(false);
+    fetchStats();
+
+    // Fetch real announcements for the dashboard
+    if (role === 'PARENT') {
+      api.get('/announcement')
+        .then(res => {
+          // Get only the first 2 announcements to keep the dashboard clean
+          setAnnouncements(res.data.slice(0, 2));
+        })
+        .catch(console.error);
     }
-  }, [selectedExamId]);
+  }, [role, user]);
 
-  const fetchPendingGrades = async (eId: string) => {
-    setLoading(true);
-    try {
-      const res = await api.get(`/exams/${eId}/grading/pending`);
-      setPendingGrades(res.data);
-    } catch (error) {
-      console.error('Failed to fetch pending grades:', error);
-      setMessage(' Failed to load pending grades.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleApprove = async (logId: string, useAiScore: boolean) => {
-    try {
-      const payload = {
-        status: 'APPROVED',
-        teacherFinalScore: useAiScore ? undefined : editScore,
-        teacherFinalFeedback: useAiScore ? undefined : editFeedback,
-      };
-
-      await api.put(`/exams/grading/logs/${logId}`, payload);
-      setMessage('✅ Grade approved and synced to Gradebook!');
-      setEditingLogId(null);
-      fetchPendingGrades(selectedExamId);
-      setTimeout(() => setMessage(''), 3000);
-    } catch (error) {
-      console.error('Failed to approve grade:', error);
-      setMessage('❌ Failed to approve grade.');
-    }
-  };
-
-  const handleFlag = async (logId: string) => {
-    try {
-      await api.put(`/exams/grading/logs/${logId}`, {
-        status: 'FLAGGED',
-        teacherFinalScore: editScore,
-        teacherFinalFeedback: editFeedback,
-      });
-      setMessage('⚠️ Grade flagged for review.');
-      setEditingLogId(null);
-      fetchPendingGrades(selectedExamId);
-      setTimeout(() => setMessage(''), 3000);
-    } catch (error) {
-      console.error('Failed to flag grade:', error);
-    }
-  };
-
-  return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-2xl font-bold text-brown-800">AI Grading Dashboard</h1>
-          <p className="text-gray-600 text-sm mt-1">Review and approve AI-suggested scores for theory answers.</p>
-        </div>
-        <button 
-          onClick={() => navigate('/gradebook')}
-          className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition"
-        >
-          ← Back to Gradebook
-        </button>
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#5C4033]"></div>
       </div>
+    );
+  }
 
-      {/* Exam Selector Dropdown */}
-      <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 flex items-center gap-4">
-        <label className="font-semibold text-gray-700">Select Exam:</label>
-        <select 
-          value={selectedExamId} 
-          onChange={(e) => setSelectedExamId(e.target.value)}
-          className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-        >
-          <option value="">-- Choose an Exam --</option>
-          {exams.map((exam) => (
-            <option key={exam.id} value={exam.id}>
-              {exam.name} - {exam.subject?.name} ({exam.class?.name})
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {message && (
-        <div className={`px-4 py-3 rounded-lg text-sm font-medium ${
-          message.includes('✅') ? 'bg-green-100 text-green-700' : 
-          message.includes('⚠️') ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'
-        }`}>
-          {message}
+  // ==========================================
+  // 🌟 PARENT DASHBOARD VIEW
+  // ==========================================
+  if (role === 'PARENT') {
+    return (
+      <div className="p-6 space-y-6 max-w-7xl mx-auto">
+        {/* Welcome Banner */}
+        <div className="bg-gradient-to-r from-[#5C4033] to-[#7A5A4A] rounded-2xl p-6 text-[#FFFDD0] shadow-lg">
+          <h1 className="text-3xl font-bold mb-2">Welcome back, {user.firstName}!</h1>
+          <p className="opacity-90">Here is a quick overview of your child's academic journey at The Virtue College.</p>
         </div>
-      )}
 
-      {loading ? (
-        <div className="p-8 text-center text-gray-600">Loading AI Grading Queue...</div>
-      ) : pendingGrades.length === 0 ? (
-        <div className="bg-white rounded-xl shadow-sm p-12 text-center border border-gray-100">
-          <CheckCircle className="mx-auto text-green-500 mb-4" size={48} />
-          <h3 className="text-xl font-semibold text-gray-800">All Caught Up!</h3>
-          <p className="text-gray-500 mt-2">
-            {selectedExamId ? 'There are no pending theory answers to grade for this exam.' : 'Please select an exam above to view pending grades.'}
-          </p>
+        {/* Child Profile Card */}
+        <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex items-center gap-4">
+          <div className="w-14 h-14 bg-[#FFFDD0] rounded-full flex items-center justify-center text-[#5C4033] font-bold text-2xl shadow-inner">
+            {stats?.student?.name?.charAt(0) || 'S'}
+          </div>
+          <div>
+            <h2 className="text-xl font-bold text-gray-800">{stats?.student?.name || 'Student Name'}</h2>
+            <p className="text-sm text-gray-500">Admission No: {stats?.student?.admissionNo || 'N/A'}</p>
+          </div>
         </div>
-      ) : (
-        <div className="space-y-6">
-          {pendingGrades.map((log) => {
-            const student = log.studentAnswer.attempt.student;
-            const question = log.studentAnswer.question;
-            const isEditing = editingLogId === log.id;
 
-            return (
-              <div key={log.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                <div className="bg-gray-50 px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-                  <div>
-                    <h3 className="font-bold text-gray-800">
-                      {student.firstName} {student.lastName} 
-                      <span className="text-gray-500 font-normal text-sm ml-2">({student.admissionNo})</span>
-                    </h3>
-                    <p className="text-sm text-gray-600 mt-1">Question: {question.questionText}</p>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-xs font-semibold text-gray-500 uppercase">Max Points</span>
-                    <p className="text-xl font-bold text-brown-800">{question.maxPoints}</p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-gray-200">
-                  <div className="p-6">
-                    <h4 className="text-sm font-semibold text-gray-500 uppercase mb-3 flex items-center gap-2">
-                      <Edit2 size={16} /> Student's Answer
-                    </h4>
-                    <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 text-gray-800 whitespace-pre-wrap leading-relaxed min-h-[100px]">
-                      {log.studentAnswer.submittedText || <span className="text-gray-400 italic">No text submitted.</span>}
-                    </div>
-                  </div>
-
-                  <div className="p-6 bg-blue-50/30">
-                    <h4 className="text-sm font-semibold text-blue-800 uppercase mb-3 flex items-center gap-2">
-                      <CheckCircle size={16} /> AI Suggestion
-                    </h4>
-                    
-                    {!isEditing ? (
-                      <div className="space-y-4">
-                        <div className="flex items-baseline gap-2">
-                          <span className="text-3xl font-bold text-blue-700">{log.aiSuggestedScore}</span>
-                          <span className="text-gray-500">/ {question.maxPoints} points</span>
-                        </div>
-                        <div className="bg-white p-3 rounded-lg border border-blue-100 text-sm text-gray-700">
-                          <span className="font-semibold text-blue-800">AI Feedback:</span> {log.aiFeedback}
-                        </div>
-                        
-                        <div className="flex items-center gap-2 text-xs text-gray-500">
-                          <AlertTriangle size={14} />
-                          Confidence: {Math.round((log.aiConfidence || 0) * 100)}%
-                        </div>
-
-                        <div className="flex gap-3 pt-2">
-                          <button
-                            onClick={() => handleApprove(log.id, true)}
-                            className="flex-1 bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 transition font-medium flex items-center justify-center gap-2"
-                          >
-                            <CheckCircle size={18} /> Approve
-                          </button>
-                          <button
-                            onClick={() => {
-                              setEditingLogId(log.id);
-                              setEditScore(log.aiSuggestedScore);
-                              setEditFeedback(log.aiFeedback);
-                            }}
-                            className="flex-1 bg-white border border-gray-300 text-gray-700 py-2 rounded-lg hover:bg-gray-50 transition font-medium flex items-center justify-center gap-2"
-                          >
-                            <Edit2 size={18} /> Edit Score
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="space-y-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Adjusted Score</label>
-                          <input
-                            type="number"
-                            min="0"
-                            max={question.maxPoints}
-                            value={editScore}
-                            onChange={(e) => setEditScore(Number(e.target.value))}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Teacher Feedback</label>
-                          <textarea
-                            value={editFeedback}
-                            onChange={(e) => setEditFeedback(e.target.value)}
-                            rows={3}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 resize-none"
-                          />
-                        </div>
-                        <div className="flex gap-3 pt-2">
-                          <button
-                            onClick={() => handleApprove(log.id, false)}
-                            className="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition font-medium flex items-center justify-center gap-2"
-                          >
-                            <Save size={18} /> Save & Approve
-                          </button>
-                          <button
-                            onClick={() => handleFlag(log.id)}
-                            className="flex-1 bg-yellow-500 text-white py-2 rounded-lg hover:bg-yellow-600 transition font-medium flex items-center justify-center gap-2"
-                          >
-                            <AlertTriangle size={18} /> Flag
-                          </button>
-                          <button
-                            onClick={() => setEditingLogId(null)}
-                            className="px-4 py-2 text-gray-600 hover:bg-gray-200 rounded-lg transition"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
+        {/* Key Metrics Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* Attendance */}
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition duration-300">
+            <div className="flex items-center justify-between mb-4">
+              <div className="p-3 bg-green-100 text-green-700 rounded-lg">
+                <Users size={24} />
               </div>
-            );
-          })}
+              <span className="text-xs font-bold text-green-700 bg-green-50 px-2 py-1 rounded-full">Excellent</span>
+            </div>
+            <h3 className="text-gray-500 text-sm font-medium">Attendance Rate</h3>
+            <p className="text-3xl font-bold text-gray-800 mt-1">96%</p>
+            <p className="text-xs text-gray-400 mt-2">Last 30 days</p>
+          </div>
+
+          {/* Fee Balance */}
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition duration-300">
+            <div className="flex items-center justify-between mb-4">
+              <div className="p-3 bg-blue-100 text-blue-700 rounded-lg">
+                <DollarSign size={24} />
+              </div>
+              <span className={`text-xs font-bold px-2 py-1 rounded-full ${stats?.summary?.balance > 0 ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}`}>
+                {stats?.summary?.balance > 0 ? 'Outstanding' : 'Paid in Full'}
+              </span>
+            </div>
+            <h3 className="text-gray-500 text-sm font-medium">Fee Balance</h3>
+            <p className="text-3xl font-bold text-gray-800 mt-1">
+              ₦{(stats?.summary?.balance || 0).toLocaleString()}
+            </p>
+            <p className="text-xs text-gray-400 mt-2">Total Expected: ₦{(stats?.summary?.totalExpected || 0).toLocaleString()}</p>
+          </div>
+
+          {/* Academic Performance */}
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition duration-300">
+            <div className="flex items-center justify-between mb-4">
+              <div className="p-3 bg-purple-100 text-purple-700 rounded-lg">
+                <TrendingUp size={24} />
+              </div>
+              <span className="text-xs font-bold text-purple-700 bg-purple-50 px-2 py-1 rounded-full">Current Term</span>
+            </div>
+            <h3 className="text-gray-500 text-sm font-medium">Average Grade</h3>
+            <p className="text-3xl font-bold text-gray-800 mt-1">A-</p>
+            <p className="text-xs text-gray-400 mt-2">Top 15% of class</p>
+          </div>
         </div>
-      )}
+
+        {/* Bottom Section: Announcements & Quick Actions */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          
+          {/* Recent Announcements */}
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+            <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+              <Calendar size={20} className="text-[#5C4033]" /> Recent Announcements
+            </h3>
+            <div className="space-y-4">
+              {announcements.length > 0 ? (
+                announcements.map((ann, idx) => (
+                  <div 
+                    key={ann.id} 
+                    className={`p-4 bg-gray-50 rounded-lg border-l-4 ${idx === 0 ? 'border-[#5C4033]' : 'border-blue-500'}`}
+                  >
+                    <h4 className="font-semibold text-gray-800">{ann.title}</h4>
+                    <p className="text-sm text-gray-600 mt-1">{ann.content}</p>
+                    <span className="text-xs text-gray-400 mt-2 block">
+                      {new Date(ann.createdAt).toLocaleDateString()}
+                    </span>
+                  </div>
+                ))
+              ) : (
+                <p className="text-gray-500 text-center py-4">No announcements yet.</p>
+              )}
+            </div>
+          </div>
+
+          {/* Quick Actions */}
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+            <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+              <CheckCircle size={20} className="text-[#5C4033]" /> Quick Actions
+            </h3>
+            <div className="grid grid-cols-2 gap-4">
+              <button 
+                onClick={() => navigate('/fees')}
+                className="p-4 bg-[#5C4033] text-[#FFFDD0] rounded-lg hover:bg-[#4B3621] transition flex flex-col items-center justify-center gap-2 shadow-sm"
+              >
+                <DollarSign size={28} />
+                <span className="font-semibold">View Fees</span>
+              </button>
+              <button 
+                onClick={() => navigate('/report-card')}
+                className="p-4 bg-white border-2 border-[#5C4033] text-[#5C4033] rounded-lg hover:bg-[#FFFDD0] transition flex flex-col items-center justify-center gap-2"
+              >
+                <FileText size={28} />
+                <span className="font-semibold">Report Card</span>
+              </button>
+              <button 
+                onClick={() => navigate('/library')}
+                className="p-4 bg-white border-2 border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition flex flex-col items-center justify-center gap-2"
+              >
+                <BookOpen size={28} />
+                <span className="font-semibold">Library</span>
+              </button>
+              <button 
+                onClick={() => navigate('/schedule')}
+                className="p-4 bg-white border-2 border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition flex flex-col items-center justify-center gap-2"
+              >
+                <Calendar size={28} />
+                <span className="font-semibold">Class Schedule</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ==========================================
+  // DEFAULT DASHBOARD (Admin/Teacher/Student)
+  // ==========================================
+  return (
+    <div className="p-6">
+      <div className="bg-gradient-to-r from-[#5C4033] to-[#7A5A4A] rounded-2xl p-6 text-[#FFFDD0] shadow-lg mb-6">
+        <h1 className="text-3xl font-bold mb-2">Welcome back, {user?.firstName}!</h1>
+        <p className="opacity-90">You are logged in as {role?.replace('_', ' ')}.</p>
+      </div>
+      
+      <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-100 text-center">
+        <p className="text-gray-600 text-lg">Role-specific dashboard content for <strong>{role}</strong> goes here.</p>
+      </div>
     </div>
   );
 }

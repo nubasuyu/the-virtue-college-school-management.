@@ -46,6 +46,23 @@ export class TermService {
     });
   }
 
+  // 👇 NEW: Toggle term active status
+  async toggleActive(tenantId: string, id: string, isActive: boolean) {
+    // If we are activating a term, first deactivate all other terms for this tenant
+    if (isActive) {
+      await this.prisma.term.updateMany({
+        where: { tenantId },
+        data: { isActive: false },
+      });
+    }
+
+    // Then, update the specific term to the new active status
+    return this.prisma.term.update({
+      where: { id },
+      data: { isActive },
+    });
+  }
+
   async remove(tenantId: string, id: string) {
     return this.prisma.term.delete({ where: { id, tenantId } });
   }

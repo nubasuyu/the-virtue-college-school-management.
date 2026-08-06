@@ -1,5 +1,6 @@
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useEffect, useState } from 'react';
+import api from '../lib/axios'; // 👈 ADDED IMPORT
 
 // Define navigation links for each role
 const roleNavLinks = {
@@ -18,6 +19,8 @@ const roleNavLinks = {
     { name: 'Gradebook', path: '/gradebook' },
     { name: 'Report Card', path: '/report-card' },
     { name: 'Promotions', path: '/promotion' },
+    { name: 'AI Grading', path: '/grading' },
+     { name: 'Academic Settings', path: '/academic-settings' },
   ],
   SCHOOL_ADMIN: [
     { name: 'Dashboard', path: '/dashboard' },
@@ -29,6 +32,7 @@ const roleNavLinks = {
     { name: 'Attendance', path: '/attendance' },
     { name: 'Timetable', path: '/schedule' },
     { name: 'Library', path: '/library' },
+     { name: 'Academic Settings', path: '/academic-settings' },
   ],
   TEACHER: [
     { name: 'Dashboard', path: '/dashboard' },
@@ -40,6 +44,7 @@ const roleNavLinks = {
     { name: 'Timetable', path: '/schedule' },
     { name: 'Gradebook', path: '/gradebook' },
     { name: 'My Exams', path: '/my-exams' },
+    { name: 'AI Grading', path: '/grading' },
   ],
   STUDENT: [
     { name: 'Dashboard', path: '/dashboard' },
@@ -51,36 +56,51 @@ const roleNavLinks = {
   ],
   PARENT: [
     { name: 'Dashboard', path: '/dashboard' },
-    { name: 'My Children', path: '/students' }, // Parents can view their children
+    { name: 'My Children', path: '/my-children' },
     { name: 'Report Card', path: '/report-card' },
     { name: 'Fees', path: '/fees' },
     { name: 'Payments', path: '/payments' },
+    { name: 'Library', path: '/library' },
     { name: 'Announcements', path: '/announcements' },
   ],
   ACCOUNTANT: [
     { name: 'Dashboard', path: '/dashboard' },
     { name: 'Fees', path: '/fees' },
     { name: 'Payments', path: '/payments' },
-    { name: 'Students', path: '/students' }, // View only for fee collection
+    { name: 'Students', path: '/students' },
   ],
 };
 
 export default function Layout() {
   const navigate = useNavigate();
   const location = useLocation();
-  const [userRole, setUserRole] = useState('SUPER_ADMIN'); // Default
+  const [userRole, setUserRole] = useState('SUPER_ADMIN');
   const [currentUser, setCurrentUser] = useState<any>(null);
 
   useEffect(() => {
-    // Get user data from localStorage
     const storedUser = localStorage.getItem('user');
     const storedToken = localStorage.getItem('token');
     
     if (storedUser && storedToken) {
       try {
-        const user = JSON.parse(storedUser);
+        let user = JSON.parse(storedUser);
         setCurrentUser(user);
         setUserRole(user.role || 'SUPER_ADMIN');
+
+        // 👇 NEW: If parent, fetch their children and update localStorage if not already present
+        if (user.role === 'PARENT' && (!user.children || user.children.length === 0)) {
+          api.get('/parents/my-children')
+            .then(res => {
+              if (res.data && res.data.length > 0) {
+                const updatedUser = { ...user, children: res.data };
+                localStorage.setItem('user', JSON.stringify(updatedUser));
+                setCurrentUser(updatedUser);
+              }
+            })
+            .catch(err => {
+              console.error('Failed to fetch parent children:', err);
+            });
+        }
       } catch (e) {
         console.error('Error parsing user data:', e);
       }
@@ -93,12 +113,11 @@ export default function Layout() {
     navigate('/login');
   };
 
-  // Get navigation links based on user role
   const navLinks = roleNavLinks[userRole as keyof typeof roleNavLinks] || roleNavLinks.SUPER_ADMIN;
 
   return (
     <div className="flex min-h-screen bg-cream-100">
-      {/* Sidebar - Deep Brown */}
+      {/* Sidebar */}
       <aside className="w-64 bg-brown-800 text-cream-50 flex flex-col shadow-lg min-h-screen">
         <div className="p-6 flex flex-col items-center border-b border-brown-900">
           <img 
@@ -139,7 +158,7 @@ export default function Layout() {
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Top Navbar - Cream/White */}
+        {/* Top Navbar */}
         <header className="bg-white shadow-sm p-4 flex justify-between items-center border-b border-cream-200">
           <h2 className="text-xl font-semibold text-brown-800">
             {navLinks.find((l) => l.path === location.pathname)?.name || 'Page'}

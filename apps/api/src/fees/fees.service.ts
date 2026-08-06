@@ -22,7 +22,6 @@ export class FeesService implements OnModuleInit {
       data: {
         ...rest,
         tenantId,
-        // 👇 PROVIDE A DEFAULT DESCRIPTION IF MISSING 👇
         description: data.description || 'General Fee', 
         class: classId ? { connect: { id: classId } } : undefined,
         term: termId ? { connect: { id: termId } } : undefined,
@@ -62,7 +61,6 @@ export class FeesService implements OnModuleInit {
       where: { id },
       data: {
         ...rest,
-        // 👇 PROVIDE A DEFAULT DESCRIPTION IF MISSING 👇
         description: data.description || 'General Fee', 
         class: classId ? { connect: { id: classId } } : undefined,
         term: termId ? { connect: { id: termId } } : undefined,
@@ -76,14 +74,13 @@ export class FeesService implements OnModuleInit {
     return this.prisma.feeStructure.delete({ where: { id } });
   }
 
-    async recordPayment(tenantId: string, data: any) {
+  async recordPayment(tenantId: string, data: any) {
     const { studentId, feeStructureId, ...rest } = data;
     return this.prisma.payment.create({
       data: {
         ...rest,
         tenantId,
         amount: parseFloat(data.amount),
-        // 👇 ADD THIS LINE TO DEFAULT TO 'CASH' 👇
         paymentMethod: data.paymentMethod || 'CASH', 
         student: studentId ? { connect: { id: studentId } } : undefined,
         feeStructure: feeStructureId ? { connect: { id: feeStructureId } } : undefined,
@@ -91,6 +88,7 @@ export class FeesService implements OnModuleInit {
       include: { student: true, feeStructure: true },
     });
   }
+
   async getStudentPayments(tenantId: string, studentId: string) {
     return this.prisma.payment.findMany({
       where: { tenantId, studentId },
@@ -104,10 +102,65 @@ export class FeesService implements OnModuleInit {
   }
 
   async getAllPayments(tenantId: string) {
-  return this.prisma.payment.findMany({
-    where: { tenantId },
-    include: { student: true, feeStructure: true },
-    orderBy: { createdAt: 'desc' }, // Show newest payments first
-  });
-}
+    return this.prisma.payment.findMany({
+      where: { tenantId },
+      include: { student: true, feeStructure: true },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  // ==========================================
+  // 👇 NEW: PARENT FEE SUMMARY ENDPOINT LOGIC
+  // ==========================================
+  async getStudentFeeSummary(tenantId: string, studentId: string) {
+    const student = await this.prisma.student.findUnique({
+      where: { id: studentId, tenantId },
+      select: { 
+        id: true,
+        firstName: true, 
+        lastName: true, 
+        admissionNo: true,
+        currentClassId: true 
+      }
+    });
+
+    if (!student) {
+      throw new NotFoundException('Student not found');
+    }
+
+    // Get all fee structures for the student's class
+    const feeStructures = await this.prisma.feeStructure.findMany({
+      where: {
+        tenantId,
+        classId: student.currentClassId || undefined,
+      },
+      include: { class: true, term: true }
+    });
+
+    // Get all payments made by this student
+    const payments = await this.prisma.payment.findMany({
+      where: { tenantId, studentId },
+      orderBy: { paymentDate: 'desc' },
+      include: { feeStructure: true }
+    });
+
+    const totalExpected = feeStructures.reduce((sum, fee) => sum + fee.amount, 0);
+    const totalPaid = payments.reduce((sum, payment) => sum + payment.amount, 0);
+    const balance = Math.max(0, totalExpected - totalPaid);
+
+    return {
+      student: {
+        id: student.id,
+        name: `${student.firstName} ${student.lastName}`,
+        admissionNo: student.admissionNo,
+      },
+      feeStructures,
+      payments,
+      summary: {
+        totalExpected,
+        totalPaid,
+        balance,
+      }
+    };
+  }
 }

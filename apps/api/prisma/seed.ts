@@ -6,7 +6,7 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('🌱 Starting comprehensive database seed...');
 
-  // 1. CLEAR EXISTING DATA (Order matters due to foreign keys)
+  // 1. CLEAR EXISTING DATA
   await prisma.aIGradingLog.deleteMany();
   await prisma.studentAnswer.deleteMany();
   await prisma.examAttempt.deleteMany();
@@ -66,47 +66,43 @@ async function main() {
     data: { tenantId: tenant.id, email: 'teacher1@virtuecollege.edu', passwordHash, firstName: 'John', lastName: 'Smith', role: UserRole.TEACHER },
   });
 
-  const teacher2 = await prisma.user.create({
-    data: { tenantId: tenant.id, email: 'teacher2@virtuecollege.edu', passwordHash, firstName: 'Sarah', lastName: 'Johnson', role: UserRole.TEACHER },
-  });
-
   const accountant = await prisma.user.create({
     data: { tenantId: tenant.id, email: 'accountant@virtuecollege.edu', passwordHash, firstName: 'Mike', lastName: 'Wilson', role: UserRole.ACCOUNTANT },
   });
 
-  console.log('✅ Created 5 Users (Admin, School Admin, 2 Teachers, Accountant)');
+  console.log('✅ Created Users');
 
-  // 4. CREATE ACADEMIC SESSION & TERMS
+  // 4. CREATE ACADEMIC SESSION & TERMS (UPDATED WITH isActive)
   const session = await prisma.academicSession.create({
     data: {
       tenantId: tenant.id,
       name: '2025-2026 Academic Year',
       startDate: new Date('2025-09-01'),
-      endDate: new Date('2026-06-30'),
+      endDate: new Date('2026-07-30'),
       isActive: true,
     },
   });
 
+  // Create 3 Terms. Only the First Term is active right now.
   const term1 = await prisma.term.create({
-    data: { tenantId: tenant.id, sessionId: session.id, name: 'First Term', number: 1, startDate: new Date('2025-09-01'), endDate: new Date('2025-12-20') },
+    data: { tenantId: tenant.id, sessionId: session.id, name: 'First Term', number: 1, startDate: new Date('2025-09-01'), endDate: new Date('2025-12-20'), isActive: true },
+  });
+  await prisma.term.create({
+    data: { tenantId: tenant.id, sessionId: session.id, name: 'Second Term', number: 2, startDate: new Date('2026-01-10'), endDate: new Date('2026-04-15'), isActive: false },
+  });
+  await prisma.term.create({
+    data: { tenantId: tenant.id, sessionId: session.id, name: 'Third Term', number: 3, startDate: new Date('2026-05-01'), endDate: new Date('2026-07-30'), isActive: false },
   });
 
-  console.log('✅ Created Academic Session & Terms');
+  console.log('✅ Created Academic Session & 3 Terms');
 
   // 5. CREATE CLASSES & SUBJECTS
   const class1 = await prisma.class.create({
     data: { tenantId: tenant.id, name: 'Grade 10', section: 'A', classTeacherId: teacher1.id },
   });
 
-  const class2 = await prisma.class.create({
-    data: { tenantId: tenant.id, name: 'Grade 11', section: 'B', classTeacherId: teacher2.id },
-  });
-
   const math = await prisma.subject.create({ data: { tenantId: tenant.id, name: 'Mathematics', code: 'MATH101', description: 'Advanced Mathematics' } });
   const english = await prisma.subject.create({ data: { tenantId: tenant.id, name: 'English Language', code: 'ENG101', description: 'English Literature' } });
-  const science = await prisma.subject.create({ data: { tenantId: tenant.id, name: 'Science', code: 'SCI101', description: 'General Science' } });
-
-  console.log('✅ Created 2 Classes & 3 Subjects');
 
   // 6. CREATE 10 STUDENTS & PARENTS
   const students: any[] = [];
@@ -118,12 +114,14 @@ async function main() {
         admissionNo: `TVC2025${String(i).padStart(4, '0')}`,
         firstName: `Student${i}`,
         lastName: 'Demo',
-        dateOfBirth: new Date('2008-05-15'), // FIXED: Static valid date to prevent Prisma errors
+        dateOfBirth: new Date('2008-05-15'),
         gender: i % 2 === 0 ? 'Male' : 'Female',
         email: `student${i}@virtuecollege.edu`,
-        currentClassId: i <= 5 ? class1.id : class2.id,
+        currentClassId: class1.id,
         enrollmentTerm: 1,
-         passwordHash: await bcrypt.hash('student123', 10), 
+        passwordHash: await bcrypt.hash('student123', 10),
+        // 👇 CRITICAL FOR BIOMETRIC DEMO
+        biometricId: `BIO-${String(i).padStart(3, '0')}`, 
       },
     });
     students.push(student);
@@ -137,7 +135,7 @@ async function main() {
         tenantId: tenant.id,
         firstName: `Parent${i}`,
         lastName: 'Demo',
-        phone: `+123456789${i}`,
+        phone: `+234801234567${i}`,
         email: `parent${i}@virtuecollege.edu`,
         relation: 'Father',
         userId: parentUser.id,
@@ -146,7 +144,7 @@ async function main() {
     });
   }
 
-  console.log('✅ Created 10 Students & Parents');
+  console.log('✅ Created 10 Students & Parents with Biometric IDs');
 
   // 7. CREATE CLASS HISTORIES
   for (const student of students) {
@@ -156,19 +154,27 @@ async function main() {
   }
 
   // 8. CREATE SCHEDULES
-  await prisma.schedule.create({ data: { tenantId: tenant.id, classId: class1.id, subjectId: math.id, teacherId: teacher1.id, dayOfWeek: 'Monday', startTime: '08:00', endTime: '09:00', roomName: 'Room 101', termId: term1.id } });
-  await prisma.schedule.create({ data: { tenantId: tenant.id, classId: class1.id, subjectId: english.id, teacherId: teacher2.id, dayOfWeek: 'Monday', startTime: '09:00', endTime: '10:00', roomName: 'Room 101', termId: term1.id } });
-  await prisma.schedule.create({ data: { tenantId: tenant.id, classId: class2.id, subjectId: science.id, teacherId: teacher1.id, dayOfWeek: 'Tuesday', startTime: '10:00', endTime: '11:00', roomName: 'Lab 1', termId: term1.id } });
+  await prisma.schedule.create({ data: { tenantId: tenant.id, classId: class1.id, subjectId: math.id, teacherId: teacher1.id, dayOfWeek: 'MONDAY', startTime: '08:00', endTime: '09:00', roomName: 'Room 101', termId: term1.id } });
+  await prisma.schedule.create({ data: { tenantId: tenant.id, classId: class1.id, subjectId: english.id, teacherId: teacher1.id, dayOfWeek: 'MONDAY', startTime: '09:00', endTime: '10:00', roomName: 'Room 101', termId: term1.id } });
 
-  console.log('✅ Created Schedules');
-
-  // 9. CREATE ATTENDANCE RECORDS
+  // 9. CREATE ATTENDANCE RECORDS (With Scanner Badges)
   const today = new Date();
-  for (const student of students.slice(0, 5)) {
-    await prisma.attendance.create({ data: { tenantId: tenant.id, studentId: student.id, classId: student.currentClassId!, date: today, status: AttendanceStatus.PRESENT } });
-  }
+  const checkInDate = new Date(today);
+  checkInDate.setHours(7, 45, 0, 0); 
 
-  console.log('✅ Created Attendance Records');
+  for (let i = 0; i < 5; i++) {
+    await prisma.attendance.create({ 
+      data: { 
+        tenantId: tenant.id, 
+        studentId: students[i].id, 
+        classId: students[i].currentClassId!, 
+        date: today, 
+        status: AttendanceStatus.PRESENT,
+        checkInTime: checkInDate, 
+        deviceName: 'Front_Desk_Scanner' 
+      } 
+    });
+  }
 
   // 10. CREATE EXAMS & GRADES
   const exam1 = await prisma.exam.create({
@@ -187,55 +193,50 @@ async function main() {
     });
   }
 
-  console.log('✅ Created Exams & Grades');
-
-  // 11. CREATE FEE STRUCTURES & PAYMENTS
-  const feeStructure = await prisma.feeStructure.create({
-    data: { tenantId: tenant.id, name: 'Tuition Fee - Term 1', amount: 5000, currency: 'USD', classId: class1.id, termId: term1.id, description: 'Tuition fees for First Term', dueDate: new Date('2025-09-30') },
+  // 11. CREATE FEE STRUCTURES & PAYMENTS (Realistic NGN Scenarios)
+  const tuitionFee = await prisma.feeStructure.create({
+    data: { tenantId: tenant.id, name: 'Term 1 Tuition Fee', amount: 150000, currency: 'NGN', classId: class1.id, termId: term1.id, description: 'Standard tuition for First Term', dueDate: new Date('2025-09-30') },
   });
 
-  for (let i = 0; i < 3; i++) {
-    await prisma.payment.create({ data: { tenantId: tenant.id, studentId: students[i].id, feeStructureId: feeStructure.id, amount: 5000, currency: 'USD', paymentMethod: 'Bank Transfer', reference: `PAY${Date.now()}${i}`, remarks: 'Full payment' } });
-  }
+  const devFee = await prisma.feeStructure.create({
+    data: { tenantId: tenant.id, name: 'Development Levy', amount: 25000, currency: 'NGN', classId: class1.id, termId: term1.id, description: 'One-time development fee', dueDate: new Date('2025-09-30') },
+  });
 
-  console.log('✅ Created Fee Structures & Payments');
+  // Scenario A: Student 1 pays PARTIAL (Will show Outstanding Balance: ₦75,000)
+  await prisma.payment.create({ 
+    data: { tenantId: tenant.id, studentId: students[0].id, feeStructureId: tuitionFee.id, amount: 100000, currency: 'NGN', paymentMethod: 'BANK_TRANSFER', reference: 'TRF-998877', remarks: 'Partial payment' } 
+  });
+
+  // Scenario B: Student 2 pays IN FULL (Will show Paid in Full: ₦0)
+  await prisma.payment.create({ 
+    data: { tenantId: tenant.id, studentId: students[1].id, feeStructureId: tuitionFee.id, amount: 150000, currency: 'NGN', paymentMethod: 'CARD', reference: 'PAY-112233', remarks: 'Full tuition payment' } 
+  });
+  await prisma.payment.create({ 
+    data: { tenantId: tenant.id, studentId: students[1].id, feeStructureId: devFee.id, amount: 25000, currency: 'NGN', paymentMethod: 'CARD', reference: 'PAY-112234', remarks: 'Full development fee' } 
+  });
+
+  console.log('✅ Created Realistic Fee Structures & Payment Scenarios');
 
   // 12. CREATE LIBRARY BOOKS
   const book1 = await prisma.book.create({ data: { tenantId: tenant.id, title: 'Introduction to Algebra', author: 'John Doe', isbn: '978-1234567890', publisher: 'Math Press', publishedYear: 2020, category: 'Mathematics' } });
   await prisma.bookCopy.create({ data: { tenantId: tenant.id, bookId: book1.id, copyNumber: 1, status: 'AVAILABLE' } });
 
-  console.log('✅ Created Library Books');
-
   // 13. CREATE ANNOUNCEMENTS
   await prisma.announcement.create({ data: { tenantId: tenant.id, title: 'Welcome to the New Academic Year', content: 'We are excited to welcome all students and staff to the 2025-2026 academic year.', authorId: admin.id, targetAudience: 'ALL', isPinned: true } });
 
-  console.log('✅ Created Announcements');
-
-  // 14. CREATE ASSIGNMENTS & SUBMISSIONS
-  const assignment = await prisma.assignment.create({ data: { tenantId: tenant.id, title: 'Algebra Homework 1', description: 'Complete exercises 1-20 from Chapter 3', subjectId: math.id, classId: class1.id, teacherId: teacher1.id, dueDate: new Date('2025-10-20'), totalMarks: 50 } });
-  await prisma.submission.create({ data: { tenantId: tenant.id, assignmentId: assignment.id, studentId: students[0].id, content: 'Completed all exercises', marksObtained: 45, feedback: 'Great work!' } });
-
-  console.log('✅ Created Assignments & Submissions');
-
-  // 15. CREATE BEHAVIOR SCORES & REPORT COMMENTS
+  // 14. CREATE BEHAVIOR SCORES & REPORT COMMENTS
   await prisma.behaviorScore.create({ data: { studentId: students[0].id, termId: term1.id, sessionId: session.id, attendance: 9, attentiveness: 8, cooperation: 9, willingness: 8, labour: 7, leadership: 8, neatness: 9, politeness: 10 } });
   await prisma.reportComment.create({ data: { studentId: students[0].id, termId: term1.id, sessionId: session.id, teacherComment: 'Excellent student with great potential.', houseMasterComment: 'Well-behaved and respectful.', principalComment: 'Keep up the good work!', nextTermBegins: '2026-01-10' } });
 
-  console.log('✅ Created Behavior Scores & Report Comments');
-
   console.log('\n🎉 Database seeded successfully!');
-  console.log('\n📋 Login Credentials:');
+  console.log('\n📋 Login Credentials (Password: password123):');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('Email: admin@virtuecollege.edu');
-  console.log('Password: password123');
-  console.log('Role: SUPER_ADMIN');
+  console.log('👑 admin@virtuecollege.edu (SUPER_ADMIN)');
+  console.log('👨‍🏫 teacher1@virtuecollege.edu (TEACHER)');
+  console.log('👨‍👦 parent1@virtuecollege.edu (PARENT - Child owes ₦75,000)');
+  console.log('👩‍👧 parent2@virtuecollege.edu (PARENT - Child is Fully Paid)');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('\nOther test accounts (Password: password123):');
-  console.log('- schooladmin@virtuecollege.edu');
-  console.log('- teacher1@virtuecollege.edu');
-  console.log('- teacher2@virtuecollege.edu');
-  console.log('- parent1@virtuecollege.edu');
-  console.log('- accountant@virtuecollege.edu');
+  console.log('\n🖐️  Biometric Test IDs: BIO-001, BIO-002, BIO-003, etc.');
 }
 
 main()

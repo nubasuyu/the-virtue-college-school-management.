@@ -9,10 +9,10 @@ import { EmailService } from '../email/email.service';
 export class ParentService {
   constructor(
     private prisma: PrismaService,
-    private emailService: EmailService // 👈 Add this line
+    private emailService: EmailService
   ) {}
 
-    async create(tenantId: string, data: CreateParentDto) {
+  async create(tenantId: string, data: CreateParentDto) {
     const { studentIds, createPortalAccount, password, ...parentData } = data;
 
     // 1. Create the records in the database
@@ -55,19 +55,18 @@ export class ParentService {
 
     // 2. If a portal account was created, send the welcome email!
     if (createPortalAccount && newParent.user?.email && password) {
-      // We do this outside the transaction so it doesn't block the API response
       this.emailService.sendParentWelcomeEmail(
         newParent.user.email,
         `${newParent.firstName} ${newParent.lastName}`,
-        password // In a real app, you might want to send a password reset link instead of the plain password
+        password
       ).catch((err) => {
-        // Log the error but don't crash the API if the email fails
         console.error('Failed to send welcome email:', err);
       });
     }
 
     return newParent;
   }
+
   async findAll(tenantId: string) {
     return this.prisma.parent.findMany({
       where: { tenantId },
@@ -94,7 +93,6 @@ export class ParentService {
     return parent;
   }
 
-    // Add this new method to your ParentService
   async findOneByUserId(userId: string, tenantId: string) {
     const parent = await this.prisma.parent.findUnique({
       where: { userId },
@@ -113,6 +111,22 @@ export class ParentService {
     }
 
     return parent;
+  }
+
+  // 👇 NEW: Fetch children linked to the logged-in parent
+  async getMyChildren(userId: string, tenantId: string) {
+    const parent = await this.prisma.parent.findUnique({
+      where: { 
+        userId, 
+        tenantId 
+      },
+      include: { 
+        students: true 
+      },
+    });
+
+    // Return the array of students, or an empty array if none found
+    return parent?.students || [];
   }
 
   async update(tenantId: string, id: string, data: UpdateParentDto) {

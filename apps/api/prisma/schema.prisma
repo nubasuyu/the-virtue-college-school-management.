@@ -276,6 +276,7 @@ model Term {
   endDate   DateTime
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  isActive  Boolean  @default(false)
 
   session       AcademicSession @relation(fields: [sessionId], references: [id])
   exams         Exam[]

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Put, Delete, UseGuards, Request, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Put, Patch, Delete, UseGuards, Request, Query } from '@nestjs/common';
 import { TermService } from './term.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
@@ -25,6 +25,12 @@ export class TermController {
   @Put(':id')
   async update(@Request() req: any, @Param('id') id: string, @Body() body: { name?: string; number?: number; startDate?: string; endDate?: string }) {
     return this.termService.update(req.user.tenantId, id, body);
+  }
+
+  // 👇 NEW: Toggle term active status (Sets this term to active, deactivates others)
+  @Patch(':id/toggle-active')
+  async toggleActive(@Request() req: any, @Param('id') id: string, @Body() body: { isActive: boolean }) {
+    return this.termService.toggleActive(req.user.tenantId, id, body.isActive);
   }
 
   @Delete(':id')

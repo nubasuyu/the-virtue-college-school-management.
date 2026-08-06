@@ -8,7 +8,8 @@ import {
   UseGuards,
   Request,
   Query,
-  Req
+  Req,
+  ForbiddenException
 } from '@nestjs/common';
 import { FeesService } from './fees.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -27,8 +28,8 @@ export class FeesController {
       name: string;
       amount: number;
       currency?: string;
-      classId: string;
-      termId: string;
+      classId?: string;
+      termId?: string;
       description?: string;
       dueDate?: string;
     }
@@ -40,8 +41,8 @@ export class FeesController {
   @Get('structure')
   async getFeeStructures(
     @Request() req: any,
-    @Query('classId') classId: string,
-    @Query('termId') termId: string
+    @Query('classId') classId?: string,
+    @Query('termId') termId?: string
   ) {
     return this.feesService.getFeeStructures(
       req.user.tenantId,
@@ -77,8 +78,6 @@ export class FeesController {
     return this.feesService.getStudentPayments(req.user.tenantId, studentId);
   }
 
-  
-
   // Calculate outstanding balance for a student in a term
   @Get('balance/student/:studentId/term/:termId')
   async calculateBalance(
@@ -102,8 +101,21 @@ export class FeesController {
     return this.feesService.deleteFeeStructure(req.user.tenantId, id);
   }
 
+  // Get all payments (Admin/Accountant view)
   @Get('payment')
   getAllPayments(@Req() req: any) {
-  return this.feesService.getAllPayments(req.user.tenantId);
-}
+    return this.feesService.getAllPayments(req.user.tenantId);
+  }
+
+  // ==========================================
+  // 👇 NEW: PARENT FEE SUMMARY ENDPOINT
+  // ==========================================
+  @Get('student/:studentId/summary')
+  async getStudentFeeSummary(@Req() req: any, @Param('studentId') studentId: string) {
+    // Security check: Ensure the user is a Parent or Admin
+    if (req.user.role !== 'PARENT' && req.user.role !== 'SUPER_ADMIN' && req.user.role !== 'SCHOOL_ADMIN') {
+      throw new ForbiddenException('Access denied: Parents and Admins only.');
+    }
+    return this.feesService.getStudentFeeSummary(req.user.tenantId, studentId);
+  }
 }
