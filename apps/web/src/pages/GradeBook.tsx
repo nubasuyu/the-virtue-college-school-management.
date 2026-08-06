@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom'; // ✅ ADDED
-import { CheckCircle } from 'lucide-react'; // ✅ ADDED
+//import { CheckCircle } from 'lucide-react'; // ✅ ADDED
 import api from '../lib/axios';
 import BulkUploadQuestions from '../components/exams/BulkUploadQuestions';
 

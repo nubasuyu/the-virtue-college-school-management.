@@ -16,7 +16,7 @@ export default function AddTeacherModal({ isOpen, onClose, onTeacherSaved, editT
     firstName: '',
     lastName: '',
     email: '',
-    password: '', // 👈 NEW: Added password field
+    password: '', 
     phone: '',
     subject: '',
     qualification: '',
@@ -52,12 +52,11 @@ export default function AddTeacherModal({ isOpen, onClose, onTeacherSaved, editT
     setError('');
 
     try {
-      const payload = { ...formData };
+      // 👇 PROPER FIX: Destructure to safely omit 'password' without using the 'delete' operator
+      const { password, ...restOfPayload } = formData;
       
-      // If editing and password is empty, remove it so we don't send an empty password
-      if (editTeacher && !payload.password) {
-        delete payload.password;
-      }
+      // If editing and password is empty, only send the rest of the payload
+      const payload = editTeacher && !password ? restOfPayload : formData;
 
       if (editTeacher) {
         await api.put(`/teacher/${editTeacher.id}`, payload);
@@ -109,7 +108,6 @@ export default function AddTeacherModal({ isOpen, onClose, onTeacherSaved, editT
               <input required type="email" name="email" value={formData.email} onChange={handleChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
-            {/* 👇 NEW: PASSWORD FIELD 👇 */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Password {editTeacher ? '(Leave blank to keep current)' : '*'}

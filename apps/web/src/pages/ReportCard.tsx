@@ -20,7 +20,7 @@ export default function ReportCard() {
   const role = user?.role;
   const isViewer = role === 'PARENT' || role === 'STUDENT';
 
-  //  CRITICAL FIX: Empty dependency array [] prevents the infinite loop!
+  // CRITICAL FIX: Empty dependency array [] prevents the infinite loop!
   useEffect(() => {
     if (!isViewer) {
       api.get('/student').then(res => setStudents(res.data)).catch(console.error);
@@ -36,7 +36,7 @@ export default function ReportCard() {
           new Date(b.startDate || 0).getTime() - new Date(a.startDate || 0).getTime()
         )[0];
         
-        // 👇 DYNAMICALLY get the first child's ID from the user object
+        // DYNAMICALLY get the first child's ID from the user object
         const viewerStudentId = role === 'PARENT' ? user?.children?.[0]?.id : user?.userId;
 
         console.log(' Auto-selecting - Term:', latestTerm?.id, 'Student:', viewerStudentId);
@@ -51,8 +51,8 @@ export default function ReportCard() {
               console.log('✅ Auto-loaded report:', reportRes.data);
               setReportData([reportRes.data]);
             })
-            .catch(err => {
-              console.error('❌ Auto-load failed:', err);
+            .catch(() => {
+              console.error('❌ Auto-load failed');
               setReportData([]);
             })
             .finally(() => setLoading(false));
@@ -68,7 +68,7 @@ export default function ReportCard() {
       console.error('Failed to load terms', err);
       setLoading(false);
     });
-  }, []); //  EMPTY ARRAY STOPS THE LOOP
+  }, []); // EMPTY ARRAY STOPS THE LOOP
 
   // Manual load for when user changes dropdowns
   const loadSingleReport = async () => {
@@ -158,7 +158,7 @@ export default function ReportCard() {
                   setLoading(true);
                   api.get(`/report-card/student/${selectedStudent}/term/${e.target.value}`)
                     .then(res => setReportData([res.data]))
-                    .catch(err => setReportData([]))
+                    .catch(() => setReportData([])) // ✅ FIX: Removed unused 'err' parameter
                     .finally(() => setLoading(false));
                 }
               }} className="px-3 py-2 border border-gray-300 rounded-md w-48">

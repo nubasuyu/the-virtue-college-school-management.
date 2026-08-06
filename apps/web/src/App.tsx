@@ -17,7 +17,7 @@ import Announcements from './pages/Announcements';
 import Attendance from './pages/Attendance';
 import Schedule from './pages/Schedule';
 import Library from './pages/Library';
-import Gradebook from './pages/Gradebook';
+import Gradebook from './pages/GradeBook';
 import ReportCard from './pages/ReportCard';
 import Promotion from './pages/Promotion';
 import ExamCreationForm from './components/exams/ExamCreationForm';

@@ -50,9 +50,9 @@ export default function StudentExamInterface() {
   }, [timeLeft]);
 
   // 3. Auto-Save Logic (Debounced per question)
-  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  // ✅ FIX: Changed NodeJS.Timeout to ReturnType<typeof setTimeout> for browser compatibility
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // ✅ FIX: Added 'type' parameter to correctly route the value
   const handleAnswerChange = (questionId: string, value: any, type: 'MCQ' | 'THEORY') => {
     setAnswers((prev) => ({
       ...prev,

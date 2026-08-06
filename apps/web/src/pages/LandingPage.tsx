@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { 
-  BookOpen, Users, Award, Phone, Mail, MapPin, 
+  Users, Award, Phone, Mail, MapPin, 
   ChevronRight, Menu, X, GraduationCap, Star, Calendar 
 } from 'lucide-react';
 
