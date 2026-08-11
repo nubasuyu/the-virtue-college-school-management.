@@ -15,33 +15,40 @@ export default function Students() {
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editStudent, setEditStudent] = useState<any>(null);
-  
-  // ✅ NEW: Track the logged-in user's role
   const [user, setUser] = useState<any>(null);
 
   useEffect(() => {
-    // Fetch students
+    console.log('🔄 [Students] Component mounted. Starting initial fetch...');
     fetchStudents();
     
-    // Fetch user role from localStorage
     const storedUser = localStorage.getItem('user');
     if (storedUser) {
-      setUser(JSON.parse(storedUser));
+      try {
+        const parsedUser = JSON.parse(storedUser);
+        setUser(parsedUser);
+        console.log('👤 [Students] User loaded from localStorage. Role:', parsedUser.role);
+      } catch (e) {
+        console.error('❌ [Students] Failed to parse user from localStorage', e);
+      }
     }
   }, []);
 
   const fetchStudents = async () => {
+    console.log('📡 [Students] fetchStudents called. Setting loading = true');
+    setLoading(true);
     try {
       const response = await api.get('/student');
-      setStudents(response.data);
+      console.log('✅ [Students] API response received successfully. Data length:', response.data?.length);
+      setStudents(response.data || []);
     } catch (error) {
-      console.error('Error fetching students:', error);
+      console.error('❌ [Students] Error fetching students:', error);
+      setStudents([]); // Ensure we have an empty array on error
     } finally {
+      console.log('🏁 [Students] fetchStudents finished. Setting loading = false');
       setLoading(false);
     }
   };
 
-  // ✅ NEW: Permission checks based on role
   const canAdd = user?.role && ['SUPER_ADMIN', 'SCHOOL_ADMIN'].includes(user.role);
   const canEdit = user?.role && ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'TEACHER'].includes(user.role);
   const canDelete = user?.role && ['SUPER_ADMIN', 'SCHOOL_ADMIN'].includes(user.role);
@@ -50,8 +57,9 @@ export default function Students() {
     if (window.confirm(`Are you sure you want to delete ${name}? This cannot be undone.`)) {
       try {
         await api.delete(`/student/${id}`);
-        fetchStudents(); // Refresh list
+        fetchStudents();
       } catch (error) {
+        console.error('Failed to delete student:', error);
         alert('Failed to delete student.');
       }
     }
@@ -67,14 +75,23 @@ export default function Students() {
     setIsModalOpen(false);
   };
 
-  if (loading) return <div className="p-4 text-gray-600">Loading students...</div>;
+  // 👇 DEBUG: Log every time the component renders
+  console.log('🎨 [Students] Rendering... loading =', loading, ' | students count =', students.length);
+
+  if (loading) {
+    return (
+      <div className="p-4 text-gray-600 flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mr-3"></div>
+        Loading students...
+      </div>
+    );
+  }
 
   return (
     <div className="bg-white rounded-lg shadow p-6">
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold text-gray-800">All Students</h2>
         
-        {/* ✅ ONLY show Add button for Admins */}
         {canAdd && (
           <button 
             onClick={() => { setEditStudent(null); setIsModalOpen(true); }}
@@ -111,7 +128,6 @@ export default function Students() {
                   </td>
                   <td className="px-6 py-4">{student.gender}</td>
                   <td className="px-6 py-4">
-                    {/* ✅ ONLY show Edit button for Admins and Teachers */}
                     {canEdit && (
                       <button 
                         onClick={() => handleEdit(student)} 
@@ -121,7 +137,6 @@ export default function Students() {
                       </button>
                     )}
                     
-                    {/* ✅ ONLY show Delete button for Admins */}
                     {canDelete && (
                       <button 
                         onClick={() => handleDelete(student.id, `${student.firstName} ${student.lastName}`)} 
@@ -131,7 +146,6 @@ export default function Students() {
                       </button>
                     )}
                     
-                    {/* Fallback for users who can view but not edit/delete (e.g., Accountants) */}
                     {!canEdit && !canDelete && (
                       <span className="text-gray-400 text-xs">View Only</span>
                     )}
@@ -143,7 +157,6 @@ export default function Students() {
         </table>
       </div>
 
-      {/* The Modal Component */}
       <AddStudentModal 
         isOpen={isModalOpen} 
         onClose={handleCloseModal} 

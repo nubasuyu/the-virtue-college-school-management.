@@ -1,6 +1,6 @@
-import { Outlet, useNavigate, useLocation } from 'react-router-dom';
+import { Outlet, useLocation, NavLink } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-import api from '../lib/axios'; // 👈 ADDED IMPORT
+import api from '../lib/axios';
 
 // Define navigation links for each role
 const roleNavLinks = {
@@ -20,7 +20,7 @@ const roleNavLinks = {
     { name: 'Report Card', path: '/report-card' },
     { name: 'Promotions', path: '/promotion' },
     { name: 'AI Grading', path: '/grading' },
-     { name: 'Academic Settings', path: '/academic-settings' },
+    { name: 'Academic Settings', path: '/academic-settings' },
   ],
   SCHOOL_ADMIN: [
     { name: 'Dashboard', path: '/dashboard' },
@@ -32,7 +32,7 @@ const roleNavLinks = {
     { name: 'Attendance', path: '/attendance' },
     { name: 'Timetable', path: '/schedule' },
     { name: 'Library', path: '/library' },
-     { name: 'Academic Settings', path: '/academic-settings' },
+    { name: 'Academic Settings', path: '/academic-settings' },
   ],
   TEACHER: [
     { name: 'Dashboard', path: '/dashboard' },
@@ -72,7 +72,6 @@ const roleNavLinks = {
 };
 
 export default function Layout() {
-  const navigate = useNavigate();
   const location = useLocation();
   const [userRole, setUserRole] = useState('SUPER_ADMIN');
   const [currentUser, setCurrentUser] = useState<any>(null);
@@ -87,7 +86,6 @@ export default function Layout() {
         setCurrentUser(user);
         setUserRole(user.role || 'SUPER_ADMIN');
 
-        // 👇 NEW: If parent, fetch their children and update localStorage if not already present
         if (user.role === 'PARENT' && (!user.children || user.children.length === 0)) {
           api.get('/parents/my-children')
             .then(res => {
@@ -110,7 +108,7 @@ export default function Layout() {
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
-    navigate('/login');
+    window.location.href = '/login'; // Force full reload on logout to clear state
   };
 
   const navLinks = roleNavLinks[userRole as keyof typeof roleNavLinks] || roleNavLinks.SUPER_ADMIN;
@@ -130,19 +128,22 @@ export default function Layout() {
           </h1>
         </div>
         
+        {/* ✅ THE FIX: Using NavLink instead of button + useNavigate */}
         <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
           {navLinks.map((link) => (
-            <button
+            <NavLink
               key={link.path}
-              onClick={() => navigate(link.path)}
-              className={`w-full text-left px-4 py-3 rounded-lg transition-colors ${
-                location.pathname === link.path
-                  ? 'bg-brown-900 text-cream-50 font-semibold shadow-md'
-                  : 'text-cream-100 hover:bg-brown-900 hover:text-cream-50'
-              }`}
+              to={link.path}
+              className={({ isActive }) =>
+                `w-full text-left px-4 py-3 rounded-lg transition-colors block ${
+                  isActive
+                    ? 'bg-brown-900 text-cream-50 font-semibold shadow-md'
+                    : 'text-cream-100 hover:bg-brown-900 hover:text-cream-50'
+                }`
+              }
             >
               {link.name}
-            </button>
+            </NavLink>
           ))}
         </nav>
         
@@ -186,9 +187,9 @@ export default function Layout() {
           </div>
         </header>
 
-        {/* Page Content */}
+        {/* Page Content - Outlet with key to force remount */}
         <main className="flex-1 overflow-y-auto p-6 bg-cream-100">
-          <Outlet />
+          <Outlet key={location.pathname} />
         </main>
       </div>
     </div>

@@ -19,7 +19,9 @@ import axios from 'axios';
 
 const api = axios.create({
   // 👇 THIS IS THE CRITICAL FIX
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3001',
+  baseURL: import.meta.env.VITE_API_URL || 'http://127.0.0.1:3001',
+  timeout: 5000,
+  //baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3001',
   headers: {
     'Content-Type': 'application/json',
   },
