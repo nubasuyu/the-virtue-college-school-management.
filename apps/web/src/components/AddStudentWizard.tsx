@@ -131,6 +131,8 @@ export default function AddStudentWizard({ isOpen, onClose, onStudentSaved, edit
         photoUrl: finalPhotoUrl || undefined,
       };
 
+      console.log("📸 FINAL PHOTO URL BEING SAVED:", finalPhotoUrl);
+      console.log("📦 FULL STUDENT PAYLOAD:", studentPayload);
       // 3. Create or Update Student
       if (isEditing) {
         await api.put(`/student/${editStudent.id}`, studentPayload);

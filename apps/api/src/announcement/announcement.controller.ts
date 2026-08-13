@@ -10,9 +10,19 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 export class AnnouncementController {
   constructor(private readonly announcementService: AnnouncementService) {}
 
-  @Post()
+    @Post()
   create(@Req() req: any, @Body() body: any) {
-    return this.announcementService.create(req.user.tenantId, req.user.id, body);
+    // 👇 DEBUG: Let's see exactly what the JWT guard is giving us
+    console.log('🔍 REQ.USER PAYLOAD:', req.user);
+    
+    // 👇 FIX: Try all common property names for the user ID
+    const authorId = req.user.id || req.user.sub || req.user.userId;
+    
+    if (!authorId) {
+      throw new Error('User ID is missing from the request. Check JWT Strategy.');
+    }
+
+    return this.announcementService.create(req.user.tenantId, authorId, body);
   }
 
   @Get()
@@ -25,10 +35,12 @@ export class AnnouncementController {
     return this.announcementService.findOne(req.user.tenantId, id);
   }
 
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() body: any) {
-    return this.announcementService.update(id, body);
+    @Patch(':id')
+  update(@Req() req: any, @Param('id') id: string, @Body() body: any) {
+    // 👇 FIX: Pass all 3 arguments: tenantId, id, and body (data)
+    return this.announcementService.update(req.user.tenantId, id, body);
   }
+
 
   @Delete(':id')
   remove(@Req() req: any, @Param('id') id: string) {
