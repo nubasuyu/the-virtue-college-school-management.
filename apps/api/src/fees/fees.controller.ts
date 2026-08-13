@@ -19,12 +19,14 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 export class FeesController {
   constructor(private readonly feesService: FeesService) {}
 
-  // Create a fee structure
+  // ==========================================
+  // FEE STRUCTURE MANAGEMENT
+  // ==========================================
+
   @Post('structure')
   async createFeeStructure(
     @Request() req: any,
-    @Body()
-    body: {
+    @Body() body: {
       name: string;
       amount: number;
       currency?: string;
@@ -32,12 +34,13 @@ export class FeesController {
       termId?: string;
       description?: string;
       dueDate?: string;
+      isOptional?: boolean;
+      category?: string;
     }
   ) {
     return this.feesService.createFeeStructure(req.user.tenantId, body);
   }
 
-  // Get all fee structures for a class and term
   @Get('structure')
   async getFeeStructures(
     @Request() req: any,
@@ -51,12 +54,22 @@ export class FeesController {
     );
   }
 
-  // Record a payment
+  @Delete('structure/:id')
+  async deleteFeeStructure(
+    @Request() req: any,
+    @Param('id') id: string
+  ) {
+    return this.feesService.deleteFeeStructure(req.user.tenantId, id);
+  }
+
+  // ==========================================
+  // PAYMENT MANAGEMENT
+  // ==========================================
+
   @Post('payment')
   async recordPayment(
     @Request() req: any,
-    @Body()
-    body: {
+    @Body() body: {
       studentId: string;
       feeStructureId?: string;
       amount: number;
@@ -69,7 +82,6 @@ export class FeesController {
     return this.feesService.recordPayment(req.user.tenantId, body);
   }
 
-  // Get all payments for a student
   @Get('payment/student/:studentId')
   async getStudentPayments(
     @Request() req: any,
@@ -78,7 +90,15 @@ export class FeesController {
     return this.feesService.getStudentPayments(req.user.tenantId, studentId);
   }
 
-  // Calculate outstanding balance for a student in a term
+  @Get('payment')
+  getAllPayments(@Req() req: any) {
+    return this.feesService.getAllPayments(req.user.tenantId);
+  }
+
+  // ==========================================
+  // STUDENT FEE BALANCE & BREAKDOWN
+  // ==========================================
+
   @Get('balance/student/:studentId/term/:termId')
   async calculateBalance(
     @Request() req: any,
@@ -92,29 +112,32 @@ export class FeesController {
     );
   }
 
-  // Delete a fee structure
-  @Delete('structure/:id')
-  async deleteFeeStructure(
-    @Request() req: any,
-    @Param('id') id: string
+  // 👇 NEW: Get personalized fee breakdown for a specific student
+  @Get('student/:studentId/breakdown')
+  async getStudentFeeBreakdown(@Req() req: any, @Param('studentId') studentId: string) {
+    return this.feesService.getStudentFeeBreakdown(req.user.tenantId, studentId);
+  }
+
+  // 👇 NEW: Toggle an optional fee (like Hostel/Bus) for a specific student
+  @Post('student/:studentId/fee/:feeStructureId/toggle')
+  async toggleStudentFee(
+    @Req() req: any, 
+    @Param('studentId') studentId: string, 
+    @Param('feeStructureId') feeStructureId: string,
+    @Body() body: { isActive: boolean }
   ) {
-    return this.feesService.deleteFeeStructure(req.user.tenantId, id);
-  }
-
-  // Get all payments (Admin/Accountant view)
-  @Get('payment')
-  getAllPayments(@Req() req: any) {
-    return this.feesService.getAllPayments(req.user.tenantId);
+    return this.feesService.toggleStudentFee(req.user.tenantId, studentId, feeStructureId, body.isActive);
   }
 
   // ==========================================
-  // 👇 NEW: PARENT FEE SUMMARY ENDPOINT
+  // PARENT PORTAL SUMMARY
   // ==========================================
+
   @Get('student/:studentId/summary')
   async getStudentFeeSummary(@Req() req: any, @Param('studentId') studentId: string) {
     // Security check: Ensure the user is a Parent or Admin
-    if (req.user.role !== 'PARENT' && req.user.role !== 'SUPER_ADMIN' && req.user.role !== 'SCHOOL_ADMIN') {
-      throw new ForbiddenException('Access denied: Parents and Admins only.');
+    if (req.user.role !== 'PARENT' && req.user.role !== 'SUPER_ADMIN' && req.user.role !== 'SCHOOL_ADMIN' && req.user.role !== 'ACCOUNTANT') {
+      throw new ForbiddenException('Access denied: Parents, Accountants, and Admins only.');
     }
     return this.feesService.getStudentFeeSummary(req.user.tenantId, studentId);
   }

@@ -56,19 +56,20 @@ model Tenant {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  users      User[]
-  students   Student[]
-  parents    Parent[]
-  classes    Class[]
-  subjects   Subject[]
-  attendance Attendance[]
+  users            User[]
+  students         Student[]
+  parents          Parent[]
+  studentParents   StudentParent[]
+  classes          Class[]
+  subjects         Subject[]
+  attendance       Attendance[]
   
-  examQuestions   ExamQuestion[]
-  examOptions     ExamOption[]
-  examRubrics     ExamRubric[]
-  examAttempts    ExamAttempt[]
-  studentAnswers  StudentAnswer[]
-  aiGradingLogs   AIGradingLog[]
+  examQuestions    ExamQuestion[]
+  examOptions      ExamOption[]
+  examRubrics      ExamRubric[]
+  examAttempts     ExamAttempt[]
+  studentAnswers   StudentAnswer[]
+  aiGradingLogs    AIGradingLog[]
 }
 
 model User {
@@ -82,7 +83,6 @@ model User {
   role         UserRole
   isActive     Boolean  @default(true)
   
-  // 👇 NEW: Fingerprint / Biometric ID for staff
   biometricId  String?  @unique 
   
   createdAt    DateTime @default(now())
@@ -94,8 +94,7 @@ model User {
   borrowings          Borrowing[]
   announcements       Announcement[]
   parent              Parent? 
-  attendances         Attendance[]   // 👈 NEW: Relation to Attendance
-  
+  attendances         Attendance[]
   reviewedGradingLogs AIGradingLog[] @relation("AIGradingReviewer")
 
   @@unique([tenantId, email])
@@ -105,62 +104,107 @@ model User {
 model Student {
   id                String   @id @default(uuid())
   tenantId          String
-  admissionNo       String   @unique
+  
+  // 👇 PERSONAL INFO
   firstName         String
   lastName          String
+  middleName        String?
   dateOfBirth       DateTime
   gender            String?
-  email             String?
-  address           String?
-  parentName        String?
-  parentPhone       String?
-  parentEmail       String?
-  currentClassId    String?
+  nationality       String?
+  religion          String?
+  bloodGroup        String?
+  photoUrl          String?
   
-  // 👇 NEW: Fingerprint / Biometric ID for students
+  // 👇 ACADEMIC INFO
+  admissionNo       String   @unique
+  currentClassId    String?
+  enrollmentTerm    Int      @default(1)
+  enrollmentSession String?
+  previousSchool    String?
+  dateOfAdmission   DateTime?
+  
+  // 👇 CONTACT & ADDRESS
+  email             String?
+  residentialAddress String?
+  city              String?
+  state             String?
+  postalCode        String?
+  country           String?
+  
+  // 👇 MEDICAL & EMERGENCY
+  knownAllergies    String?  @db.Text
+  chronicConditions String?  @db.Text
+  emergencyContactName       String?
+  emergencyContactPhone      String?
+  emergencyContactRelationship String?
+  
+  // 👇 SYSTEM & BIOMETRIC
   biometricId       String?  @unique
+  parentPin         String?
+  passwordHash      String
+  mediaConsent      Boolean  @default(false)
+  termsAccepted     Boolean  @default(false)
   
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
-  enrollmentTerm    Int      @default(1)
-  enrollmentSession String?
-  parentPin         String?
-  passwordHash      String          
 
   tenant          Tenant            @relation(fields: [tenantId], references: [id])
   currentClass    Class?            @relation("StudentCurrentClass", fields: [currentClassId], references: [id])
   classHistories  ClassHistory[]
   grades          Grade[]
-  attendances     Attendance[]      // 👈 NEW: Relation to Attendance
+  attendances     Attendance[]
   payments        Payment[]
   submission      Submission[]
   borrowings      Borrowing[]
   behaviorScores  BehaviorScore[]
   reportComments  ReportComment[]
   academicHistory AcademicHistory[]
+  examAttempts    ExamAttempt[]
+  
+  // 👈 RELATIONS
+  studentParents  StudentParent[]
+  studentFees     StudentFee[]      // 👈 NEW: Relation to personalized fees
+}
 
-  parents Parent[] @relation("StudentParents")
-  examAttempts ExamAttempt[]
+model StudentParent {
+  id        String   @id @default(uuid())
+  tenantId  String
+  
+  studentId String
+  parentId  String
+  isPrimary Boolean  @default(false)
+  relation  String?
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  parent  Parent  @relation(fields: [parentId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, parentId])
+  @@index([tenantId])
+  @@index([studentId])
+  @@index([parentId])
 }
 
 model Parent {
-  id       String @id @default(uuid())
-  tenantId String
+  id          String   @id @default(uuid())
+  tenantId    String
+  
+  firstName   String
+  lastName    String
+  phone       String
+  email       String?
+  occupation  String?
+  employer    String?
+  
+  userId      String?  @unique
+  user        User?    @relation(fields: [userId], references: [id])
+  
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  firstName String
-  lastName  String
-  phone     String
-  email     String?
-  relation  String?
-
-  userId String? @unique
-  user   User?   @relation(fields: [userId], references: [id])
-
-  students Student[] @relation("StudentParents")
-
-  tenant    Tenant   @relation(fields: [tenantId], references: [id])
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  studentParents StudentParent[]
 
   @@index([tenantId])
   @@index([email])
@@ -223,7 +267,6 @@ model Exam {
   subject    Subject        @relation(fields: [subjectId], references: [id])
   class      Class          @relation(fields: [classId], references: [id])
   grades     Grade[]
-  
   questions  ExamQuestion[]
   attempts   ExamAttempt[]
 }
@@ -337,28 +380,23 @@ model Subject {
   @@unique([tenantId, code])
 }
 
-// 👇 COMPLETELY UPGRADED ATTENDANCE MODEL
 model Attendance {
   id             String            @id @default(uuid())
   tenantId       String
   
-  // 👇 POLYMORPHIC: Can be a Student OR a Staff User
   studentId      String?
   userId         String?
-  
-  classId        String?           // Only applicable for students
+  classId        String?
   
   date           DateTime          @db.Date
   
-  // 👇 DAILY SCAN TRACKING (Morning & Afternoon)
   checkInTime    DateTime?
   checkOutTime   DateTime?
   
   status         AttendanceStatus  @default(ABSENT)
   
-  // 👇 BIOMETRIC / FINGERPRINT TRACKING
-  biometricId    String?           // The template ID returned by the scanner
-  deviceName     String?           // e.g., "Main Gate Scanner", "Staff Room Scanner"
+  biometricId    String?
+  deviceName     String?
   notes          String?
   
   createdAt      DateTime          @default(now())
@@ -369,13 +407,13 @@ model Attendance {
   user     User?    @relation(fields: [userId], references: [id])
   class    Class?   @relation(fields: [classId], references: [id])
 
-  // 👇 CONSTRAINTS: One record per person, per day
   @@unique([studentId, date])
   @@unique([userId, date])
   @@index([tenantId, date])
-  @@index([biometricId]) // Fast lookup when fingerprint is scanned
+  @@index([biometricId])
 }
 
+// 👇 UPDATED: Fee Structure with Optional flags
 model FeeStructure {
   id          String    @id @default(uuid())
   tenantId    String?
@@ -386,12 +424,32 @@ model FeeStructure {
   termId      String?
   description String
   dueDate     DateTime?
+  
+  isOptional  Boolean   @default(false) // 👈 NEW: e.g., Hostel, Bus
+  category    String    @default("TUITION") // 👈 NEW: TUITION, HOSTEL, BUS, etc.
+  
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  class    Class     @relation(fields: [classId], references: [id])
-  term     Term?     @relation(fields: [termId], references: [id])
-  payments Payment[]
+  class         Class          @relation(fields: [classId], references: [id])
+  term          Term?          @relation(fields: [termId], references: [id])
+  payments      Payment[]
+  studentFees   StudentFee[]   // 👈 NEW RELATION
+}
+
+// 👇 NEW: Tracks exactly which fees apply to which specific student
+model StudentFee {
+  id             String   @id @default(uuid())
+  studentId      String
+  feeStructureId String
+  amount         Float?   // If null, uses the default FeeStructure amount
+  isWaived       Boolean  @default(false) // Admin can waive a fee for a specific student
+  createdAt      DateTime @default(now())
+
+  student      Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  feeStructure FeeStructure @relation(fields: [feeStructureId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, feeStructureId]) // A student can only have one record per fee type
 }
 
 model Payment {

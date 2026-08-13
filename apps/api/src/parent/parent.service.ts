@@ -1,7 +1,5 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { CreateParentDto } from './dto/create-parent.dto';
-import { UpdateParentDto } from './dto/update-parent.dto';
 import * as bcrypt from 'bcrypt';
 import { EmailService } from '../email/email.service';
 
@@ -12,10 +10,10 @@ export class ParentService {
     private emailService: EmailService
   ) {}
 
-  async create(tenantId: string, data: CreateParentDto) {
-    const { studentIds, createPortalAccount, password, ...parentData } = data;
+  async create(tenantId: string, data: any) {
+    // 👇 Extract 'relation' so it doesn't get passed to the Parent model
+    const { studentIds, createPortalAccount, password, relation, ...parentData } = data;
 
-    // 1. Create the records in the database
     const newParent = await this.prisma.$transaction(async (tx) => {
       let userId: string | undefined = undefined;
 
@@ -37,23 +35,32 @@ export class ParentService {
         throw new BadRequestException('Email is required to create a portal account');
       }
 
-      return tx.parent.create({
+      const createdParent = await tx.parent.create({
         data: {
-          ...parentData,
+          ...parentData, // 'relation' is safely excluded from here now
           tenantId,
           userId,
-          students: studentIds?.length 
-            ? { connect: studentIds.map(id => ({ id })) } 
+          // 👇 Pass 'relation' to the junction table instead
+          studentParents: studentIds?.length 
+            ? {
+                create: studentIds.map((id: string) => ({
+                  studentId: id,
+                  tenantId,
+                  isPrimary: true,
+                  relation: relation || 'Parent', 
+                })),
+              } 
             : undefined,
         },
         include: { 
-          students: true, 
+          studentParents: { include: { student: true } }, 
           user: { select: { id: true, email: true, isActive: true } }
         },
       });
+
+      return createdParent;
     });
 
-    // 2. If a portal account was created, send the welcome email!
     if (createPortalAccount && newParent.user?.email && password) {
       this.emailService.sendParentWelcomeEmail(
         newParent.user.email,
@@ -64,25 +71,33 @@ export class ParentService {
       });
     }
 
-    return newParent;
+    return {
+      ...newParent,
+      students: newParent.studentParents.map(sp => sp.student)
+    };
   }
 
   async findAll(tenantId: string) {
-    return this.prisma.parent.findMany({
+    const parents = await this.prisma.parent.findMany({
       where: { tenantId },
       include: { 
-        students: true,
+        studentParents: { include: { student: true } },
         user: { select: { id: true, email: true, isActive: true } }
       },
       orderBy: { lastName: 'asc' },
     });
+
+    return parents.map(parent => ({
+      ...parent,
+      students: parent.studentParents.map(sp => sp.student)
+    }));
   }
 
   async findOne(tenantId: string, id: string) {
     const parent = await this.prisma.parent.findUnique({
       where: { id },
       include: { 
-        students: true,
+        studentParents: { include: { student: true } },
         user: { select: { id: true, email: true, isActive: true } }
       },
     });
@@ -90,14 +105,17 @@ export class ParentService {
     if (!parent) throw new NotFoundException('Parent not found');
     if (parent.tenantId !== tenantId) throw new ForbiddenException('Access denied');
 
-    return parent;
+    return {
+      ...parent,
+      students: parent.studentParents.map(sp => sp.student)
+    };
   }
 
   async findOneByUserId(userId: string, tenantId: string) {
     const parent = await this.prisma.parent.findUnique({
       where: { userId },
       include: { 
-        students: true,
+        studentParents: { include: { student: true } },
         user: { select: { id: true, email: true, isActive: true } }
       },
     });
@@ -110,45 +128,64 @@ export class ParentService {
       throw new ForbiddenException('Access denied');
     }
 
-    return parent;
+    return {
+      ...parent,
+      students: parent.studentParents.map(sp => sp.student)
+    };
   }
 
-  // 👇 NEW: Fetch children linked to the logged-in parent
   async getMyChildren(userId: string, tenantId: string) {
     const parent = await this.prisma.parent.findUnique({
-      where: { 
-        userId, 
-        tenantId 
-      },
+      where: { userId, tenantId },
       include: { 
-        students: true 
+        studentParents: { include: { student: true } }
       },
     });
 
-    // Return the array of students, or an empty array if none found
-    return parent?.students || [];
-  }
-
-  async update(tenantId: string, id: string, data: UpdateParentDto) {
-    await this.findOne(tenantId, id);
-
-    const { studentIds, password, createPortalAccount, ...updateData } = data;
-    const prismaData: any = { ...updateData };
-
-    if (studentIds !== undefined) {
-      prismaData.students = {
-        set: studentIds.map(studentId => ({ id: studentId })),
-      };
+    if (!parent) {
+      throw new NotFoundException('Parent profile not found');
     }
 
-    return this.prisma.parent.update({
+    return parent.studentParents.map(sp => sp.student);
+  }
+
+  async update(tenantId: string, id: string, data: any) {
+    await this.findOne(tenantId, id);
+
+    // 👇 Extract 'relation' here too for consistency
+    const { studentIds, password, createPortalAccount, relation, ...updateData } = data;
+
+    if (studentIds !== undefined) {
+      await this.prisma.studentParent.deleteMany({
+        where: { parentId: id }
+      });
+
+      if (studentIds.length > 0) {
+        await this.prisma.studentParent.createMany({
+          data: studentIds.map((studentId: string) => ({
+            studentId,
+            parentId: id,
+            tenantId,
+            isPrimary: true,
+            relation: relation || 'Parent', // 👇 Pass relation to junction table
+          }))
+        });
+      }
+    }
+
+    const updatedParent = await this.prisma.parent.update({
       where: { id },
-      data: prismaData,
+      data: updateData,
       include: { 
-        students: true,
+        studentParents: { include: { student: true } },
         user: { select: { id: true, email: true, isActive: true } }
       },
     });
+
+    return {
+      ...updatedParent,
+      students: updatedParent.studentParents.map(sp => sp.student)
+    };
   }
 
   async delete(tenantId: string, id: string) {

@@ -17,6 +17,18 @@ export class AttendanceController {
   constructor(private readonly attendanceService: AttendanceService) {}
 
   // ==========================================
+  // 👇 QR CODE SCAN ENDPOINT (NEW)
+  // ==========================================
+  @Post('scan')
+  @UseGuards(JwtAuthGuard)
+  async scanQRCode(@Req() req: any, @Body() body: { admissionNo: string }) {
+    return this.attendanceService.markAttendanceByAdmissionNo(
+      req.user.tenantId, 
+      body.admissionNo
+    );
+  }
+
+  // ==========================================
   // 👇 BIOMETRIC / FINGERPRINT SCAN ENDPOINT (NO AUTH GUARD)
   // ==========================================
   @Post('biometric-scan')

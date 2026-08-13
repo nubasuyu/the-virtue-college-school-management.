@@ -20,10 +20,18 @@ export class StudentController {
   async getMyChildren(@Request() req: any) {
     const parent = await this.prisma.parent.findUnique({
       where: { userId: req.user.userId },
-      include: { students: true },
+      include: { 
+        // 👇 UPDATED: Use the new studentParents junction table
+        studentParents: { 
+          include: { student: true } 
+        } 
+      },
     });
+    
     if (!parent) return []; 
-    return parent.students;
+    
+    // Map to a flat 'student' array for backward compatibility with frontend
+    return parent.studentParents.map(sp => sp.student);
   }
 
   @Get()
@@ -39,6 +47,11 @@ export class StudentController {
   }
 
   // 👇 2. DYNAMIC ROUTES (WITH :id) MUST ALWAYS BE AT THE BOTTOM 👇
+    @Post('bulk-upload')
+  @Roles('SCHOOL_ADMIN', 'SUPER_ADMIN')
+  async bulkUpload(@Request() req: any, @Body() body: { classId: string; students: any[] }) {
+    return this.studentService.bulkCreate(req.user.tenantId, body.classId, body.students);
+  }
 
   @Get(':id')
   @Roles('SCHOOL_ADMIN', 'SUPER_ADMIN', 'TEACHER', 'PARENT')

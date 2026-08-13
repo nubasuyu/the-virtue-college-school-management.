@@ -6,6 +6,78 @@ export class AttendanceService {
   constructor(private prisma: PrismaService) {}
 
   // ==========================================
+  // QR CODE SCANNING ATTENDANCE (NEW)
+  // ==========================================
+  async markAttendanceByAdmissionNo(tenantId: string, admissionNo: string) {
+    // 1. Find student by admission number and tenant
+    const student = await this.prisma.student.findFirst({
+      where: {
+        admissionNo,
+        tenantId,
+      },
+      include: {
+        currentClass: true,
+      }
+    });
+
+    if (!student) {
+      return { success: false, message: 'Student not found. Please check the ID card.' };
+    }
+
+    // 2. Get today's date boundaries (midnight to midnight)
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    // 3. Check if attendance record already exists for this student today
+    const existingAttendance = await this.prisma.attendance.findFirst({
+      where: {
+        tenantId,
+        studentId: student.id,
+        date: {
+          gte: today,
+          lt: tomorrow,
+        },
+      },
+    });
+
+    if (existingAttendance) {
+      return { 
+        success: false, 
+        message: `Attendance already marked for ${student.firstName} ${student.lastName} today.` 
+      };
+    }
+
+    // 4. Determine status based on time (e.g., after 8:00 AM is LATE, else PRESENT)
+    const now = new Date();
+    const currentHour = now.getHours();
+    const status = currentHour >= 8 ? 'LATE' : 'PRESENT';
+
+    // 5. Create new attendance record
+    const attendance = await this.prisma.attendance.create({
+      data: {
+        tenantId,
+        studentId: student.id,
+        classId: student.currentClassId,
+        date: today,
+        checkInTime: now,
+        status: status as any,
+      },
+      include: {
+        student: true,
+        class: true,
+      }
+    });
+
+    return { 
+      success: true, 
+      message: `✅ Attendance marked successfully for ${student.firstName} ${student.lastName} (${status})`,
+      data: attendance
+    };
+  }
+
+  // ==========================================
   // BIOMETRIC / FINGERPRINT SCANNING
   // ==========================================
   async processBiometricScan(biometricId: string, deviceName?: string) {

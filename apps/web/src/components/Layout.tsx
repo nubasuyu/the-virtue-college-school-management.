@@ -21,6 +21,9 @@ const roleNavLinks = {
     { name: 'Promotions', path: '/promotion' },
     { name: 'AI Grading', path: '/grading' },
     { name: 'Academic Settings', path: '/academic-settings' },
+    { name: 'QR Scanner', path: '/qr-scanner' },
+    { name: 'Bulk Upload', path: '/bulk-upload-students' },
+    { name: 'Parents', path: '/parents' },
   ],
   SCHOOL_ADMIN: [
     { name: 'Dashboard', path: '/dashboard' },
@@ -33,6 +36,9 @@ const roleNavLinks = {
     { name: 'Timetable', path: '/schedule' },
     { name: 'Library', path: '/library' },
     { name: 'Academic Settings', path: '/academic-settings' },
+    { name: 'QR Scanner', path: '/qr-scanner' },
+    { name: 'Bulk Upload', path: '/bulk-upload-students' },
+    { name: 'Parents', path: '/parents' },
   ],
   TEACHER: [
     { name: 'Dashboard', path: '/dashboard' },
@@ -45,6 +51,7 @@ const roleNavLinks = {
     { name: 'Gradebook', path: '/gradebook' },
     { name: 'My Exams', path: '/my-exams' },
     { name: 'AI Grading', path: '/grading' },
+    { name: 'QR Scanner', path: '/qr-scanner' },
   ],
   STUDENT: [
     { name: 'Dashboard', path: '/dashboard' },

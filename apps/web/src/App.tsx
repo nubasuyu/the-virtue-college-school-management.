@@ -27,6 +27,9 @@ import StudentExamsList from './pages/StudentExamsList';
 import TeacherGradingDashboard from './pages/TeacherGradingDashboard';
 import MyChildren from './pages/MyChildren';
 import AcademicSettings from './pages/AcademicSettings';
+import QRScanner from './pages/QRScanner'; // 
+import BulkUploadStudents from './pages/BulkUploadStudents';
+import Parents from './pages/Parents';
 
 // ==========================================
 // PROTECTED ROUTE COMPONENT
@@ -84,6 +87,7 @@ function App() {
         }>
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="students" element={<Students />} />
+          <Route path="bulk-upload-students" element={<BulkUploadStudents />} />
           <Route path="teachers" element={<Teachers />} />
           <Route path="classes" element={<Classes />} />
           <Route path="subjects" element={<Subjects />} />
@@ -104,6 +108,14 @@ function App() {
           <Route path="grading/:examId" element={<TeacherGradingDashboard />} />
           <Route path="my-children" element={<MyChildren />} />
           <Route path="academic-settings" element={<AcademicSettings />} />
+          <Route path="parents" element={<Parents />} />
+          
+          {/* 👇 NEW: QR Scanner Route (Restricted to Admins and Teachers) */}
+          <Route path="qr-scanner" element={
+            <ProtectedRoute allowedRoles={['SUPER_ADMIN', 'SCHOOL_ADMIN', 'TEACHER']}>
+              <QRScanner />
+            </ProtectedRoute>
+          } />
         </Route>
 
         {/* 3. CATCH ALL - Redirect to dashboard */}

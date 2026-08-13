@@ -10,11 +10,16 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@types/papaparse": "^5.5.2",
     "axios": "^1.18.0",
+    "html5-qrcode": "^2.3.8",
     "lucide-react": "^1.26.0",
+    "papaparse": "^5.5.4",
+    "qrcode.react": "^4.2.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
-    "react-router-dom": "^7.18.0"
+    "react-router-dom": "^7.18.0",
+    "react-to-print": "^3.3.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

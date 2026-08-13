@@ -1,16 +1,19 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import * as bcrypt from 'bcryptjs'; // ✅ Added bcrypt import (use 'bcrypt' if that's what you have installed)
+import * as bcrypt from 'bcryptjs';
 
-// Ideally, these should be in separate files: dto/create-student.dto.ts & dto/update-student.dto.ts
 export class CreateStudentDto {
   firstName: string;
   lastName: string;
   admissionNo: string;
   dateOfBirth: string; 
   gender?: string;
-  email?: string; // Added email in case it's passed from the frontend
-  // ... other fields
+  email?: string;
+  parentName?: string;
+  parentPhone?: string;
+  currentClassId?: string;
+  photoUrl?: string;
+  [key: string]: any;
 }
 
 export class UpdateStudentDto {
@@ -19,7 +22,11 @@ export class UpdateStudentDto {
   admissionNo?: string;
   dateOfBirth?: string;
   email?: string;
-  // ... other optional fields
+  parentName?: string;
+  parentPhone?: string;
+  currentClassId?: string;
+  photoUrl?: string;
+  [key: string]: any;
 }
 
 @Injectable()
@@ -32,18 +39,26 @@ export class StudentService {
       throw new BadRequestException('Invalid date format for dateOfBirth');
     }
 
-    // ✅ Generate a default password hash for the new student
     const defaultPassword = 'student123'; 
     const passwordHash = await bcrypt.hash(defaultPassword, 10);
 
-    return this.prisma.student.create({
-      data: {
-        ...data, 
-        dateOfBirth: dob,
-        tenantId,
-        passwordHash, // ✅ Added the required passwordHash field
-      },
-    });
+    try {
+      return await this.prisma.student.create({
+        data: {
+          ...data,
+          dateOfBirth: dob,
+          tenantId,
+          passwordHash,
+        } as any,
+      });
+    } catch (error: any) {
+      // 👇 CATCH UNIQUE CONSTRAINT ERRORS (P2002)
+      if (error.code === 'P2002') {
+        throw new ConflictException('Admission Number already exists. Please use a unique admission number.');
+      }
+      // Re-throw other errors
+      throw error;
+    }
   }
 
   async findAll(tenantId: string) {
@@ -70,13 +85,10 @@ export class StudentService {
   }
 
   async update(tenantId: string, id: string, data: UpdateStudentDto) {
-    // 1. Verify existence and tenant ownership (throws if invalid)
     await this.findOne(tenantId, id);
 
-    // 2. Prepare update data safely
     const updateData: any = { ...data };
 
-    // 3. Handle date conversion safely if provided
     if (updateData.dateOfBirth) {
       const dob = new Date(updateData.dateOfBirth);
       if (isNaN(dob.getTime())) {
@@ -85,21 +97,87 @@ export class StudentService {
       updateData.dateOfBirth = dob;
     }
 
-    // 4. Explicitly prevent tenantId from being overwritten
     delete updateData.tenantId;
 
-    return this.prisma.student.update({
-      where: { id },
-      data: updateData,
-    });
+    try {
+      return await this.prisma.student.update({
+        where: { id },
+        data: updateData,
+      });
+    } catch (error: any) {
+      // 👇 CATCH UNIQUE CONSTRAINT ERRORS (P2002) DURING UPDATE TOO
+      if (error.code === 'P2002') {
+        throw new ConflictException('Admission Number already exists. Please use a unique admission number.');
+      }
+      throw error;
+    }
   }
 
   async delete(tenantId: string, id: string) {
-    // Verify existence and tenant ownership first
     await this.findOne(tenantId, id);
 
     return this.prisma.student.delete({
       where: { id },
     });
+  }
+
+  // ==========================================
+  // BULK UPLOAD LOGIC
+  // ==========================================
+  async bulkCreate(tenantId: string, classId: string, studentsData: any[]) {
+    const results = { success: 0, failed: 0, errors: [] as any[] };
+
+    for (const data of studentsData) {
+      try {
+        // 1. Prepare student payload (Exclude parent fields!)
+        const studentPayload = {
+          firstName: data.firstName,
+          lastName: data.lastName,
+          admissionNo: data.admissionNo,
+          gender: data.gender,
+          dateOfBirth: data.dateOfBirth,
+          currentClassId: classId, // Assign to the selected class
+          // Add any other student-specific fields here if needed
+        };
+
+        // 2. Create the student
+        const student = await this.create(tenantId, studentPayload);
+
+        // 3. Create Parent and Link ONLY if parent data is provided
+        if (data.parentFirstName && data.parentPhone) {
+          const parent = await this.prisma.parent.create({
+            data: {
+              tenantId,
+              firstName: data.parentFirstName,
+              lastName: data.parentLastName || '',
+              phone: data.parentPhone,
+              email: data.parentEmail || null,
+            }
+          });
+
+          // Link Student and Parent via the junction table
+          await this.prisma.studentParent.create({
+            data: {
+              tenantId,
+              studentId: student.id,
+              parentId: parent.id,
+              relation: data.parentRelation || 'Parent',
+              isPrimary: true,
+            }
+          });
+        }
+
+        results.success++;
+      } catch (error: any) {
+        results.failed++;
+        results.errors.push({
+          admissionNo: data.admissionNo,
+          name: `${data.firstName} ${data.lastName}`,
+          message: error.message || 'Unknown error',
+        });
+      }
+    }
+
+    return results;
   }
 }

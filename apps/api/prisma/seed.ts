@@ -29,6 +29,7 @@ async function main() {
   await prisma.behaviorScore.deleteMany();
   await prisma.academicHistory.deleteMany();
   await prisma.classHistory.deleteMany();
+  await prisma.studentParent.deleteMany(); // 👈 NEW: Clear junction table
   await prisma.parent.deleteMany();
   await prisma.student.deleteMany();
   await prisma.subject.deleteMany();
@@ -72,7 +73,7 @@ async function main() {
 
   console.log('✅ Created Users');
 
-  // 4. CREATE ACADEMIC SESSION & TERMS (UPDATED WITH isActive)
+  // 4. CREATE ACADEMIC SESSION & TERMS
   const session = await prisma.academicSession.create({
     data: {
       tenantId: tenant.id,
@@ -83,7 +84,6 @@ async function main() {
     },
   });
 
-  // Create 3 Terms. Only the First Term is active right now.
   const term1 = await prisma.term.create({
     data: { tenantId: tenant.id, sessionId: session.id, name: 'First Term', number: 1, startDate: new Date('2025-09-01'), endDate: new Date('2025-12-20'), isActive: true },
   });
@@ -120,26 +120,43 @@ async function main() {
         currentClassId: class1.id,
         enrollmentTerm: 1,
         passwordHash: await bcrypt.hash('student123', 10),
-        // 👇 CRITICAL FOR BIOMETRIC DEMO
         biometricId: `BIO-${String(i).padStart(3, '0')}`, 
       },
     });
     students.push(student);
 
+    // Create Parent User
     const parentUser = await prisma.user.create({
-      data: { tenantId: tenant.id, email: `parent${i}@virtuecollege.edu`, passwordHash, firstName: `Parent${i}`, lastName: 'Demo', role: UserRole.PARENT },
+      data: { 
+        tenantId: tenant.id, 
+        email: `parent${i}@virtuecollege.edu`, 
+        passwordHash, 
+        firstName: `Parent${i}`, 
+        lastName: 'Demo', 
+        role: UserRole.PARENT 
+      },
     });
 
-    await prisma.parent.create({
+    // Create Parent Record
+    const parent = await prisma.parent.create({
       data: {
         tenantId: tenant.id,
         firstName: `Parent${i}`,
         lastName: 'Demo',
         phone: `+234801234567${i}`,
         email: `parent${i}@virtuecollege.edu`,
-        relation: 'Father',
         userId: parentUser.id,
-        students: { connect: { id: student.id } },
+      },
+    });
+
+    // 👇 NEW: Link Parent and Student using the StudentParent junction table
+    await prisma.studentParent.create({
+      data: {
+        tenantId: tenant.id,
+        studentId: student.id,
+        parentId: parent.id,
+        relation: 'Father',
+        isPrimary: true,
       },
     });
   }
@@ -157,7 +174,7 @@ async function main() {
   await prisma.schedule.create({ data: { tenantId: tenant.id, classId: class1.id, subjectId: math.id, teacherId: teacher1.id, dayOfWeek: 'MONDAY', startTime: '08:00', endTime: '09:00', roomName: 'Room 101', termId: term1.id } });
   await prisma.schedule.create({ data: { tenantId: tenant.id, classId: class1.id, subjectId: english.id, teacherId: teacher1.id, dayOfWeek: 'MONDAY', startTime: '09:00', endTime: '10:00', roomName: 'Room 101', termId: term1.id } });
 
-  // 9. CREATE ATTENDANCE RECORDS (With Scanner Badges)
+  // 9. CREATE ATTENDANCE RECORDS
   const today = new Date();
   const checkInDate = new Date(today);
   checkInDate.setHours(7, 45, 0, 0); 
@@ -193,7 +210,7 @@ async function main() {
     });
   }
 
-  // 11. CREATE FEE STRUCTURES & PAYMENTS (Realistic NGN Scenarios)
+  // 11. CREATE FEE STRUCTURES & PAYMENTS
   const tuitionFee = await prisma.feeStructure.create({
     data: { tenantId: tenant.id, name: 'Term 1 Tuition Fee', amount: 150000, currency: 'NGN', classId: class1.id, termId: term1.id, description: 'Standard tuition for First Term', dueDate: new Date('2025-09-30') },
   });
@@ -202,12 +219,10 @@ async function main() {
     data: { tenantId: tenant.id, name: 'Development Levy', amount: 25000, currency: 'NGN', classId: class1.id, termId: term1.id, description: 'One-time development fee', dueDate: new Date('2025-09-30') },
   });
 
-  // Scenario A: Student 1 pays PARTIAL (Will show Outstanding Balance: ₦75,000)
   await prisma.payment.create({ 
     data: { tenantId: tenant.id, studentId: students[0].id, feeStructureId: tuitionFee.id, amount: 100000, currency: 'NGN', paymentMethod: 'BANK_TRANSFER', reference: 'TRF-998877', remarks: 'Partial payment' } 
   });
 
-  // Scenario B: Student 2 pays IN FULL (Will show Paid in Full: ₦0)
   await prisma.payment.create({ 
     data: { tenantId: tenant.id, studentId: students[1].id, feeStructureId: tuitionFee.id, amount: 150000, currency: 'NGN', paymentMethod: 'CARD', reference: 'PAY-112233', remarks: 'Full tuition payment' } 
   });
