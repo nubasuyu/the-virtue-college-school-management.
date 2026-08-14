@@ -1,12 +1,16 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { EmailService } from '../email/email.service'; // 👈 1. IMPORT EMAIL SERVICE
 
 @Injectable()
 export class AttendanceService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private emailService: EmailService // 👈 2. INJECT EMAIL SERVICE
+  ) {}
 
   // ==========================================
-  // QR CODE SCANNING ATTENDANCE (NEW)
+  // QR CODE SCANNING ATTENDANCE
   // ==========================================
   async markAttendanceByAdmissionNo(tenantId: string, admissionNo: string) {
     // 1. Find student by admission number and tenant
@@ -70,6 +74,38 @@ export class AttendanceService {
       }
     });
 
+        // 👇 6. NEW: Notify Parents via Email
+    try {
+      const studentParents = await this.prisma.studentParent.findMany({
+        where: { studentId: student.id },
+        include: { parent: true }
+      });
+
+      for (const link of studentParents) {
+        if (link.parent.email) {
+          // 👇 FIX: Pass 3 separate arguments instead of an object
+          await this.emailService.sendEmail(
+            link.parent.email,
+            `✅ Attendance Alert: ${student.firstName} has arrived at school`,
+            `
+              <div style="font-family: Arial, sans-serif; color: #333;">
+                <h2 style="color: #2c5282;">Attendance Notification</h2>
+                <p>Dear ${link.parent.firstName || 'Parent'},</p>
+                <p>Your child, <strong>${student.firstName} ${student.lastName}</strong>, has safely arrived at The Virtue College.</p>
+                <ul style="list-style: none; padding: 0;">
+                  <li><strong>Time:</strong> ${now.toLocaleTimeString()}</li>
+                  <li><strong>Status:</strong> ${status}</li>
+                </ul>
+                <p>Thank you for trusting us with your child's education.</p>
+              </div>
+            `
+          );
+        }
+      }
+    } catch (emailError) {
+      console.error('Failed to send parent notification:', emailError);
+    }
+    
     return { 
       success: true, 
       message: `✅ Attendance marked successfully for ${student.firstName} ${student.lastName} (${status})`,
@@ -81,14 +117,8 @@ export class AttendanceService {
   // BIOMETRIC / FINGERPRINT SCANNING
   // ==========================================
   async processBiometricScan(biometricId: string, deviceName?: string) {
-    // 1. Find who this biometricId belongs to (Student or Staff User)
-    const student = await this.prisma.student.findFirst({
-      where: { biometricId },
-    });
-
-    const user = await this.prisma.user.findFirst({
-      where: { biometricId },
-    });
+    const student = await this.prisma.student.findFirst({ where: { biometricId } });
+    const user = await this.prisma.user.findFirst({ where: { biometricId } });
 
     if (!student && !user) {
       throw new NotFoundException('Fingerprint not recognized. Please enroll first.');
@@ -99,31 +129,24 @@ export class AttendanceService {
     const classId = isStudent ? student!.currentClassId : null;
     const tenantId = isStudent ? student!.tenantId : user!.tenantId;
 
-    // 2. Get today's date boundaries (midnight to midnight)
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
 
-    // 3. Check if attendance record already exists for this person today
     let attendance = await this.prisma.attendance.findFirst({
       where: {
         tenantId,
-        date: {
-          gte: today,
-          lt: tomorrow,
-        },
+        date: { gte: today, lt: tomorrow },
         ...(isStudent ? { studentId: personId } : { userId: personId }),
       },
     });
 
     const now = new Date();
     const currentHour = now.getHours();
-    const status = currentHour >= 9 ? 'LATE' : 'PRESENT'; // Determine status based on time
+    const status = currentHour >= 9 ? 'LATE' : 'PRESENT';
 
-    // 4. Determine Check-In (Morning) vs Check-Out (Afternoon)
     if (!attendance) {
-      // Scenario A: First scan of the day. Create Check-In record.
       attendance = await this.prisma.attendance.create({
         data: {
           tenantId,
@@ -144,15 +167,11 @@ export class AttendanceService {
       });
       return { message: 'Check-in successful', status: attendance.status, type: 'CHECK_IN', data: attendance };
     } else {
-      // Record already exists for today.
-      
       if (attendance.checkOutTime) {
-        // Scenario B: Already checked out. Do nothing.
         return { message: 'Already checked out for today', type: 'ALREADY_DONE', data: attendance };
       }
 
       if (attendance.checkInTime) {
-        // Scenario C: Has a check-in time, but no check-out. This is the Check-Out scan.
         attendance = await this.prisma.attendance.update({
           where: { id: attendance.id },
           data: {
@@ -167,13 +186,11 @@ export class AttendanceService {
         });
         return { message: 'Check-out successful', type: 'CHECK_OUT', data: attendance };
       } else {
-        // Scenario D: Record exists (e.g., manually marked ABSENT/EXCUSED), but NO check-in time.
-        // Override the manual status with the biometric Check-In.
         attendance = await this.prisma.attendance.update({
           where: { id: attendance.id },
           data: {
             checkInTime: now,
-            status: status as any, // 👈 THIS FIXES THE "STUCK ON BLUE" ISSUE
+            status: status as any,
             deviceName: deviceName || attendance.deviceName,
           },
           include: {
@@ -192,7 +209,6 @@ export class AttendanceService {
   // ==========================================
   async markAttendance(tenantId: string, data: any) {
     const { studentId, userId, classId, date, status, notes } = data;
-
     const targetDate = new Date(date);
     targetDate.setHours(0, 0, 0, 0);
 
@@ -237,8 +253,6 @@ export class AttendanceService {
   // ==========================================
   // FETCHING ATTENDANCE RECORDS
   // ==========================================
-
-  // Get attendance for a specific class on a specific date
   async getClassAttendance(tenantId: string, classId: string, date: string) {
     const targetDate = new Date(date);
     targetDate.setHours(0, 0, 0, 0);
@@ -249,21 +263,13 @@ export class AttendanceService {
       where: {
         tenantId,
         classId,
-        date: {
-          gte: targetDate,
-          lt: tomorrow,
-        },
+        date: { gte: targetDate, lt: tomorrow },
       },
-      include: {
-        student: true,
-      },
-      orderBy: {
-        student: { firstName: 'asc' },
-      },
+      include: { student: true },
+      orderBy: { student: { firstName: 'asc' } },
     });
   }
 
-  // Get attendance for ALL STAFF on a specific date
   async getStaffAttendance(tenantId: string, date: string) {
     const targetDate = new Date(date);
     targetDate.setHours(0, 0, 0, 0);
@@ -273,50 +279,27 @@ export class AttendanceService {
     return this.prisma.attendance.findMany({
       where: {
         tenantId,
-        userId: { not: null }, // Only fetch staff records
-        date: {
-          gte: targetDate,
-          lt: tomorrow,
-        },
+        userId: { not: null },
+        date: { gte: targetDate, lt: tomorrow },
       },
-      include: {
-        user: true,
-      },
-      orderBy: {
-        user: { firstName: 'asc' },
-      },
+      include: { user: true },
+      orderBy: { user: { firstName: 'asc' } },
     });
   }
 
-  // Get attendance history for a specific student
   async getStudentAttendance(tenantId: string, studentId: string) {
     return this.prisma.attendance.findMany({
-      where: {
-        tenantId,
-        studentId,
-      },
-      include: {
-        class: true,
-      },
-      orderBy: {
-        date: 'desc',
-      },
+      where: { tenantId, studentId },
+      include: { class: true },
+      orderBy: { date: 'desc' },
     });
   }
 
-  // Get attendance history for a specific staff member
   async getUserAttendance(tenantId: string, userId: string) {
     return this.prisma.attendance.findMany({
-      where: {
-        tenantId,
-        userId,
-      },
-      include: {
-        user: true,
-      },
-      orderBy: {
-        date: 'desc',
-      },
+      where: { tenantId, userId },
+      include: { user: true },
+      orderBy: { date: 'desc' },
     });
   }
 }
