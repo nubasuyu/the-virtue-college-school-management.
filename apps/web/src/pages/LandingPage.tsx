@@ -2,11 +2,58 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   Users, Award, Phone, Mail, MapPin, 
-  ChevronRight, Menu, X, GraduationCap, Star, Calendar 
+  ChevronRight, Menu, X, GraduationCap, Star, Calendar, Image
 } from 'lucide-react';
+
+// 👇 THIS IS WHERE YOU ADD YOUR CLOUDINARY PICTURE LINKS
+const pastEvents = [
+  {
+    id: 1,
+    title: "2025/2026 Annual End of The Session Events",
+    date: "August 1, 2026",
+    description: "2025/2026 Graduating Students Taking A Group Picture.",
+    imageUrl: "https://res.cloudinary.com/n2j2fl2r/image/upload/v1786708344/20252026_GRADUATING_STUDENTS.jpg", // Replace with your Cloudinary URL
+  },
+  {
+    id: 2,
+    title: "Science & Innovation Fair",
+    date: "May 10, 2025",
+    description: "Young minds presenting their groundbreaking projects and winning prestigious awards.",
+    imageUrl: "https://res.cloudinary.com/n2j2fl2r/image/upload/v1786709979/20252026_HEAD_BOY.jpg", 
+  },
+  {
+    id: 3,
+    title: "Celebration of Excellence",
+    date: "October 22, 2024",
+    description: "Certificate and Awaed of Excellence presented to a Student.",
+    imageUrl: "https://res.cloudinary.com/n2j2fl2r/image/upload/v1786708341/CERTIFICATE_OF_EXCELLENCE.jpg", 
+  },
+  {
+    id: 4,
+    title: "Graduation Ceremony",
+    date: "December 5, 2024",
+    description: "Proud moments as our senior students receive their certificates and step into the future.",
+    imageUrl: "https://images.unsplash.com/photo-1523050854058-8df90110c9f1?auto=format&fit=crop&q=80&w=800", 
+  },
+  {
+    id: 5,
+    title: "Inter-House Quiz Competition",
+    date: "February 14, 2025",
+    description: "A thrilling battle of wits and academic excellence among our brightest students.",
+    imageUrl: "https://images.unsplash.com/photo-1577896851231-70ef18881754?auto=format&fit=crop&q=80&w=800", 
+  },
+  {
+    id: 6,
+    title: "Art & Creativity Exhibition",
+    date: "April 2, 2025",
+    description: "Showcasing the incredible painting, sculpting, and creative talents of our student body.",
+    imageUrl: "https://images.unsplash.com/photo-1460661419201-fd4cecdf8a8b?auto=format&fit=crop&q=80&w=800", 
+  },
+];
 
 export default function LandingPage() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [hoveredEvent, setHoveredEvent] = useState<number | null>(null);
 
   return (
     <div className="min-h-screen bg-white font-sans text-gray-800">
@@ -15,7 +62,6 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-20">
             <div className="flex items-center gap-3">
-              {/* Replace with actual logo if available */}
               <div className="w-10 h-10 bg-[#FFFDD0] rounded-full flex items-center justify-center text-[#5C4033] font-bold text-xl">T</div>
               <div>
                 <h1 className="text-xl font-bold leading-tight">The Virtue College</h1>
@@ -27,7 +73,7 @@ export default function LandingPage() {
               <a href="#home" className="hover:text-white transition">Home</a>
               <a href="#about" className="hover:text-white transition">About</a>
               <a href="#programs" className="hover:text-white transition">Programs</a>
-              <a href="#achievements" className="hover:text-white transition">Achievements</a>
+              <a href="#events" className="hover:text-white transition">Events</a> {/* 👈 ADDED */}
               <a href="#contact" className="hover:text-white transition">Contact</a>
               <Link to="/login" className="bg-[#FFFDD0] text-[#5C4033] px-6 py-2 rounded-full font-bold hover:bg-white transition shadow-md">
                 Portal Login
@@ -43,10 +89,11 @@ export default function LandingPage() {
         {/* Mobile Menu */}
         {isMenuOpen && (
           <div className="md:hidden bg-[#4B3621] px-4 py-4 space-y-3">
-            <a href="#home" className="block hover:text-white">Home</a>
-            <a href="#about" className="block hover:text-white">About</a>
-            <a href="#programs" className="block hover:text-white">Programs</a>
-            <Link to="/login" className="block bg-[#FFFDD0] text-[#5C4033] px-4 py-2 rounded text-center font-bold">Portal Login</Link>
+            <a href="#home" className="block hover:text-white" onClick={() => setIsMenuOpen(false)}>Home</a>
+            <a href="#about" className="block hover:text-white" onClick={() => setIsMenuOpen(false)}>About</a>
+            <a href="#programs" className="block hover:text-white" onClick={() => setIsMenuOpen(false)}>Programs</a>
+            <a href="#events" className="block hover:text-white" onClick={() => setIsMenuOpen(false)}>Events</a> {/* 👈 ADDED */}
+            <Link to="/login" className="block bg-[#FFFDD0] text-[#5C4033] px-4 py-2 rounded text-center font-bold" onClick={() => setIsMenuOpen(false)}>Portal Login</Link>
           </div>
         )}
       </nav>
@@ -54,7 +101,6 @@ export default function LandingPage() {
       {/* ================= HERO SECTION ================= */}
       <section id="home" className="relative pt-20 min-h-screen flex items-center justify-center text-center px-4 bg-gradient-to-br from-[#5C4033] via-[#6B4E3D] to-[#3E2A20] text-[#FFFDD0]">
         <div className="absolute inset-0 bg-black/40 z-0"></div>
-        {/* Optional: Add a background image here */}
         <div className="relative z-10 max-w-4xl mx-auto">
           <span className="inline-block py-1 px-3 rounded-full bg-[#FFFDD0]/20 border border-[#FFFDD0]/30 text-sm font-semibold mb-6 backdrop-blur-sm">
             Welcome to the 2026/2027 Academic Session
@@ -152,6 +198,57 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* ================= NEW: EVENTS & GALLERY SECTION ================= */}
+      <section id="events" className="py-20 bg-[#FFFDD0]/30">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="text-center mb-16">
+            <span className="text-[#5C4033] font-bold tracking-wider uppercase text-sm">Campus Life</span>
+            <h2 className="text-4xl font-bold text-[#5C4033] mt-2">Life at The Virtue College</h2>
+            <p className="text-gray-600 max-w-2xl mx-auto mt-4 text-lg">
+              Explore memorable moments from our past events, celebrations, and academic milestones.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {pastEvents.map((event) => (
+              <div
+                key={event.id}
+                className="group bg-white rounded-xl shadow-md overflow-hidden hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1"
+                onMouseEnter={() => setHoveredEvent(event.id)}
+                onMouseLeave={() => setHoveredEvent(null)}
+              >
+                {/* Image Container with Zoom Effect */}
+                <div className="relative h-64 overflow-hidden">
+                  <img
+                    src={event.imageUrl}
+                    alt={event.title}
+                    className="w-full h-full object-contain transition-transform duration-500 group-hover:scale-110"
+                  />
+                  {/* Overlay on Hover */}
+                  <div className={`absolute inset-0 bg-[#5C4033]/70 flex items-center justify-center transition-opacity duration-300 ${
+                    hoveredEvent === event.id ? 'opacity-100' : 'opacity-0'
+                  }`}>
+                    <p className="text-[#FFFDD0] font-semibold text-center px-4 flex items-center gap-2">
+                      <Calendar size={18} /> {event.date}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Text Content */}
+                <div className="p-6">
+                  <h3 className="text-xl font-bold text-[#5C4033] mb-2 group-hover:text-[#4B3621] transition-colors">
+                    {event.title}
+                  </h3>
+                  <p className="text-gray-600 text-sm leading-relaxed">
+                    {event.description}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* ================= TESTIMONIALS ================= */}
       <section className="py-20 bg-[#5C4033] text-[#FFFDD0]">
         <div className="max-w-7xl mx-auto px-4">
@@ -187,10 +284,9 @@ export default function LandingPage() {
             <h2 className="text-3xl font-bold text-[#FFFDD0] mb-4">The Virtue College</h2>
             <p className="mb-6 max-w-md">Empowering the next generation with knowledge, virtue, and leadership skills for a globalized world.</p>
             <div className="flex gap-4">
-              {/* Social placeholders */}
-              <div className="w-10 h-10 rounded-full bg-[#5C4033] flex items-center justify-center hover:bg-[#FFFDD0] hover:text-[#5C4033] cursor-pointer transition">FB</div>
-              <div className="w-10 h-10 rounded-full bg-[#5C4033] flex items-center justify-center hover:bg-[#FFFDD0] hover:text-[#5C4033] cursor-pointer transition">IG</div>
-              <div className="w-10 h-10 rounded-full bg-[#5C4033] flex items-center justify-center hover:bg-[#FFFDD0] hover:text-[#5C4033] cursor-pointer transition">X</div>
+              <div className="w-10 h-10 rounded-full bg-[#5C4033] flex items-center justify-center hover:bg-[#FFFDD0] hover:text-[#5C4033] cursor-pointer transition font-bold">FB</div>
+              <div className="w-10 h-10 rounded-full bg-[#5C4033] flex items-center justify-center hover:bg-[#FFFDD0] hover:text-[#5C4033] cursor-pointer transition font-bold">IG</div>
+              <div className="w-10 h-10 rounded-full bg-[#5C4033] flex items-center justify-center hover:bg-[#FFFDD0] hover:text-[#5C4033] cursor-pointer transition font-bold">X</div>
             </div>
           </div>
           
@@ -199,7 +295,7 @@ export default function LandingPage() {
             <ul className="space-y-2">
               <li><a href="#about" className="hover:text-white transition">About Us</a></li>
               <li><a href="#programs" className="hover:text-white transition">Admissions</a></li>
-              <li><a href="#programs" className="hover:text-white transition">Academic Calendar</a></li>
+              <li><a href="#events" className="hover:text-white transition">School Events</a></li>
               <li><Link to="/login" className="hover:text-white transition">Student Portal</Link></li>
             </ul>
           </div>
