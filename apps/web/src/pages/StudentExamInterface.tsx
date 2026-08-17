@@ -21,16 +21,38 @@ export default function StudentExamInterface() {
   useEffect(() => {
     const loadExam = async () => {
       try {
+        console.log("🔍 1. Fetching exam details for ID:", examId);
         const res = await api.get(`/exams/${examId}`); 
-        setExam(res.data);
-        setQuestions(res.data.questions || []);
-        setTimeLeft((res.data.durationMins || 60) * 60);
+        
+        // Safely unwrap data (handles both { id: '...' } and { data: { id: '...' } })
+        const examData = res.data.data || res.data;
+        console.log("✅ 2. Exam Data received:", examData);
+        
+        setExam(examData);
+        
+        const qs = examData.questions || [];
+        console.log("📝 3. Questions found:", qs.length);
+        setQuestions(qs);
+        
+        setTimeLeft((examData.durationMins || 60) * 60);
 
+        console.log("🚀 4. Starting/Resuming exam attempt...");
         const startRes = await api.post(`/exams/${examId}/start`);
-        setAttemptId(startRes.data.id);
+        console.log("✅ 5. Start Response RAW:", startRes.data);
+        
+        // Safely unwrap attempt ID
+        const attemptData = startRes.data.data || startRes.data;
+        console.log("🆔 6. Attempt ID extracted as:", attemptData.id);
+        
+        if (!attemptData.id) {
+          throw new Error("Attempt ID is missing from backend response!");
+        }
+        
+        setAttemptId(attemptData.id);
+        
       } catch (error) {
-        console.error('Failed to load exam:', error);
-        alert('Could not load exam. Please try again.');
+        console.error('❌ Failed to load exam:', error);
+        alert('Could not load exam. Please check console for details.');
         navigate('/my-exams');
       }
     };
@@ -50,7 +72,6 @@ export default function StudentExamInterface() {
   }, [timeLeft]);
 
   // 3. Auto-Save Logic (Debounced per question)
-  // ✅ FIX: Changed NodeJS.Timeout to ReturnType<typeof setTimeout> for browser compatibility
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleAnswerChange = (questionId: string, value: any, type: 'MCQ' | 'THEORY') => {
@@ -68,16 +89,14 @@ export default function StudentExamInterface() {
           selectedOptionId: type === 'MCQ' ? value : null,
           submittedText: type === 'THEORY' ? value : null,
         };
-        
         await api.patch(`/exams/attempts/${attemptId}/answers/${questionId}`, payload);
         setLastSaved(new Date());
       } catch (error) {
         console.warn('Auto-save failed:', error);
       }
-    }, 800); // Reduced to 800ms for snappier feel
+    }, 800);
   };
 
-  // ✅ FIX: Force save all pending answers before submitting
   const forceSaveAllAnswers = async () => {
     if (!attemptId) return;
     const savePromises = Object.entries(answers).map(async ([questionId, data]: [string, any]) => {
@@ -114,10 +133,7 @@ export default function StudentExamInterface() {
 
     setIsSubmitting(true);
     try {
-      // ✅ FIX: Wait for all pending auto-saves to finish before submitting
       await forceSaveAllAnswers();
-      
-      // Call the backend submit endpoint
       await api.post(`/exams/attempts/${attemptId}/submit`);
       alert('Exam submitted successfully!');
       navigate('/my-exams'); 
@@ -134,8 +150,29 @@ export default function StudentExamInterface() {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  if (!exam || !questions.length || !attemptId) {
-    return <div className="flex items-center justify-center h-screen text-[#5C4033] text-xl font-semibold">Loading Exam & Starting Session...</div>;
+  // 👇 SMART LOADING SCREENS: Tells you EXACTLY what is missing!
+  if (!exam) {
+    return <div className="flex items-center justify-center h-screen text-[#5C4033] text-xl font-semibold">Loading Exam Details...</div>;
+  }
+  if (!attemptId) {
+    return <div className="flex items-center justify-center h-screen text-[#5C4033] text-xl font-semibold">Starting Exam Session... (Check Console)</div>;
+  }
+  if (!questions.length) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen text-[#5C4033] p-4 text-center">
+        <AlertTriangle size={64} className="mb-4 text-red-500" />
+        <h2 className="text-3xl font-bold mb-2">No Questions Found</h2>
+        <p className="mb-6 text-gray-600 max-w-md">
+          This exam ("<strong>{exam.name}</strong>") does not have any questions added to it yet. 
+        </p>
+        <button 
+          onClick={() => navigate('/my-exams')}
+          className="px-8 py-3 bg-[#5C4033] text-[#FFFDD0] rounded-lg font-bold hover:bg-[#4B3621] transition flex items-center gap-2"
+        >
+          <ChevronLeft size={20} /> Return to My Exams
+        </button>
+      </div>
+    );
   }
 
   const currentQuestion = questions[currentQuestionIndex];
